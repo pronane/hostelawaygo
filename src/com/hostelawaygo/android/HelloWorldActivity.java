@@ -11,7 +11,7 @@ public class HelloWorldActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         TextView text = new TextView(this);
-        text.setText("Hello World, Android - pronane.com");
+        text.setText("Hello World test, Android - pronane.com");
         setContentView(text);
     }
 }
