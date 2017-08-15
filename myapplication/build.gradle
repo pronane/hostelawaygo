@@ -1,3 +1,17 @@
+buildscript {
+    repositories {
+        jcenter()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath "com.android.tools.build:gradle:2.3.3"
+    }
+}
+
+repositories {
+    mavenCentral()
+}
 apply plugin: 'com.android.application'
 
 android {
@@ -31,4 +45,6 @@ dependencies {
     compile 'com.android.support.constraint:constraint-layout:+'
     compile 'com.android.support:design:25.3.1'
     testCompile 'junit:junit:4.12'
+    compile 'junit:junit:4.12'
+    compile 'junit:junit:4.12'
 }
