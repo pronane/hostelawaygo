@@ -4,34 +4,41 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:id="@+id/container"
     app:layout_behavior="@string/appbar_scrolling_view_behavior"
     tools:context="hostelawaygo.com.rest.MainActivity"
     tools:showIn="@layout/activity_main">
 
 
-    <TextView
+  <!--  <TextView
         android:id="@+id/id_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/id_label" />
-
+        android:text="@string/id_label"
+        tools:layout_editor_absoluteY="5dp"
+        tools:layout_editor_absoluteX="7dp" />
+-->
+<!--
     <TextView
         android:id="@+id/content_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignParentLeft="true"
         android:layout_below="@+id/id_label"
-        android:layout_marginTop="25dp"
-        android:text="@string/content_label" />
+        android:text="@string/content_label"
+        tools:layout_editor_absoluteY="51dp"
+        tools:layout_editor_absoluteX="0dp" />
+-->
 
     <TextView
         android:id="@+id/id_value"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="48dp"
+        android:layout_height="21dp"
         android:layout_alignParentTop="true"
-        android:layout_marginLeft="50dp"
         android:layout_toRightOf="@+id/id_label"
-        android:text="@string/id_value" />
+        android:text="@string/id_value"
+        tools:layout_editor_absoluteX="142dp"
+        tools:layout_editor_absoluteY="5dp" />
 
     <TextView
         android:id="@+id/content_value"
@@ -39,6 +46,8 @@
         android:layout_height="wrap_content"
         android:layout_alignLeft="@+id/id_value"
         android:layout_alignTop="@+id/content_label"
-        android:text="@string/content_value" />
+        android:text="@string/content_value"
+        tools:layout_editor_absoluteY="51dp"
+        tools:layout_editor_absoluteX="142dp" />
 
 </android.support.constraint.ConstraintLayout>
