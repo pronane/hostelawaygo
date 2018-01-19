@@ -1,7 +1,7 @@
 language: android
 before_install: 
 - cd myapplication
-- echo "$pwd folder !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+- echo $PWD " folder !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 #before_install: - sudo apt-get install ant
 #before_install: echo $pwd folder
 install: ant deps
