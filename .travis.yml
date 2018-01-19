@@ -1,4 +1,6 @@
 language: android
+before_install:
+- sudo apt-get install ant
 install: ant deps
 
 android:
