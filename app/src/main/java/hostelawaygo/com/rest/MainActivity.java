@@ -3,7 +3,8 @@ package hostelawaygo.com.rest;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
-import android.support.v7.app.ActionBarActivity;
+import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -15,12 +16,22 @@ import android.widget.TextView;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.web.client.RestTemplate;
 
-public class MainActivity extends ActionBarActivity {
+public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+
+        android.support.design.widget.FloatingActionButton fab = findViewById(R.id.fab);
+        fab.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                android.widget.Toast.makeText(MainActivity.this, "FAB Clicked! Email action would go here.", android.widget.Toast.LENGTH_LONG).show();
+            }
+        });
 
         if (savedInstanceState == null) {
             getSupportFragmentManager().beginTransaction()
@@ -93,8 +104,13 @@ public class MainActivity extends ActionBarActivity {
         protected void onPostExecute(Greeting greeting) {
             TextView greetingIdText = (TextView) findViewById(R.id.id_value);
             TextView greetingContentText = (TextView) findViewById(R.id.content_value);
-            greetingIdText.setText(greeting.getId());
-            greetingContentText.setText(greeting.getContent());
+            if (greeting != null) {
+                greetingIdText.setText(greeting.getId());
+                greetingContentText.setText(greeting.getContent());
+            } else {
+                greetingIdText.setText("Error");
+                greetingContentText.setText("Error fetching data");
+            }
         }
 
     }
