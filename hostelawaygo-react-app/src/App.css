@@ -1,5 +1,9 @@
 .App {
   text-align: center;
+  background-color: #FAFAFA; /* Light neutral background for the whole page */
+  min-height: 100vh; /* Ensure background covers full height */
+  display: flex;
+  flex-direction: column;
 }
 
 .App-logo {
@@ -14,14 +18,19 @@
 }
 
 .App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+  background-color: lightcyan; /* Light pastel teal/cyan */
+  padding: 20px;
+  color: dimgray; /* Dark text for contrast on light header */
+  margin-bottom: 30px;
+  border-bottom: 1px solid #ccc;
+  /* The following properties from the original .App-header are removed or adjusted:
+     min-height: 100vh; (no longer needed for header)
+     display: flex;
+     flex-direction: column;
+     align-items: center;
+     justify-content: center;
+     font-size: calc(10px + 2vmin); (font styling will be more specific or inherited)
+  */
 }
 
 .App-link {
@@ -35,4 +44,22 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+.App-main {
+   flex-grow: 1; /* Allows footer to be pushed down */
+   padding: 0 20px; /* Add some side padding */
+   width: 100%; /* Ensure it takes full width to center content properly */
+   box-sizing: border-box; /* Include padding in width calculation */
+}
+
+.App-footer {
+    margin-top: auto; /* Pushes footer to bottom if content is short */
+    padding: 20px; 
+    font-size: 0.9em;
+    color: #777;
+    border-top: 1px solid #eee;
+    background-color: #f0f0f0; /* Light grey footer background */
+    width: 100%; /* Ensure footer spans full width */
+    box-sizing: border-box; /* Include padding in width calculation */
 }

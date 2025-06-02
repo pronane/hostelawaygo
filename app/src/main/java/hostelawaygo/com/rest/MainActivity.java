@@ -49,22 +49,17 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.menu_main, menu);
+        // getMenuInflater().inflate(R.menu.menu_main, menu); // Commented out as refresh is removed
         return true;
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
-        if (id == R.id.action_refresh) {
+        // int id = item.getItemId();
+        // if (id == R.id.action_refresh) {
             // new HttpRequestTask().execute();
-            return true;
-        }
+            // return true;
+        // } // Commented out as refresh is removed
         return super.onOptionsItemSelected(item);
     }
 
@@ -80,16 +75,7 @@ public class MainActivity extends AppCompatActivity {
         public View onCreateView(LayoutInflater inflater, ViewGroup container,
                                  Bundle savedInstanceState) {
             View rootView = inflater.inflate(R.layout.content_main, container, false);
-            
-            TextView idValueText = (TextView) rootView.findViewById(R.id.id_value);
-            TextView contentValueText = (TextView) rootView.findViewById(R.id.content_value);
-            
-            if (idValueText != null) {
-                idValueText.setText("Data fetching disabled");
-            }
-            if (contentValueText != null) {
-                contentValueText.setText("Feature temporarily unavailable"); 
-            }
+            // UI text is now set directly in R.layout.content_main, no need to set it here.
             return rootView;
         }
     }

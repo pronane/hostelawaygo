@@ -4,52 +4,45 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/pastel_background_blue"
     android:id="@+id/container"
     app:layout_behavior="@string/appbar_scrolling_view_behavior"
     tools:context="hostelawaygo.com.rest.MainActivity"
     tools:showIn="@layout/activity_main">
 
     <TextView
-        android:id="@+id/id_label"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="ID:"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="@+id/id_value"
-        app:layout_constraintBaseline_toBaselineOf="@+id/id_value"
-        android:layout_marginStart="16dp"/>
-
-    <TextView
-        android:id="@+id/id_value"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Loading..."
-        app:layout_constraintStart_toEndOf="@+id/id_label"
-        app:layout_constraintTop_toTopOf="parent"
-        android:layout_marginStart="8dp"
-        android:layout_marginTop="16dp" />
-
-    <TextView
-        android:id="@+id/content_label"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Content:"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/id_value"
-        app:layout_constraintBaseline_toBaselineOf="@+id/content_value"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="16dp"/>
-
-    <TextView
-        android:id="@+id/content_value"
+        android:id="@+id/welcome_title"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:text="Loading..."
-        app:layout_constraintStart_toEndOf="@+id/content_label"
-        app:layout_constraintTop_toTopOf="@+id/content_label"
-        app:layout_constraintBaseline_toBaselineOf="@+id/content_label"
+        android:text="Welcome to HostelAwayGo!"
+        android:textSize="28sp"
+        android:textColor="@color/text_color_dark_muted"
+        android:textStyle="bold"
+        android:textAlignment="center"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginStart="8dp"
-        android:layout_marginEnd="16dp"/>
+        app:layout_constraintBottom_toTopOf="@+id/welcome_subtitle"
+        app:layout_constraintVertical_chainStyle="packed"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="32dp"
+        android:paddingBottom="8dp"/>
 
-</android.support.constraint.ConstraintLayout>
+    <TextView
+        android:id="@+id/welcome_subtitle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="All your hostel needs."
+        android:textSize="18sp"
+        android:textAlignment="center"
+        android:textColor="@color/text_color_dark_muted"
+        app:layout_constraintTop_toBottomOf="@+id/welcome_title"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="32dp"/>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
