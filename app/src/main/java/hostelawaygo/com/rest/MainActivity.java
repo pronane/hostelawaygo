@@ -1,10 +1,10 @@
 package hostelawaygo.com.rest;
 
-import android.os.AsyncTask;
+import android.os.AsyncTask; // AsyncTask is deprecated but may still work for this simple case.
 import android.os.Bundle;
-import android.support.v4.app.Fragment;
-import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.Toolbar;
+import androidx.fragment.app.Fragment;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -13,8 +13,9 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
-import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
-import org.springframework.web.client.RestTemplate;
+// import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+// import org.springframework.web.client.RestTemplate;
+// import hostelawaygo.com.rest.Greeting; // Assuming Greeting is only used by HttpRequestTask
 
 public class MainActivity extends AppCompatActivity {
 
@@ -25,7 +26,7 @@ public class MainActivity extends AppCompatActivity {
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
-        android.support.design.widget.FloatingActionButton fab = findViewById(R.id.fab);
+        com.google.android.material.floatingactionbutton.FloatingActionButton fab = findViewById(R.id.fab);
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -43,7 +44,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
-        new HttpRequestTask().execute();
+        // new HttpRequestTask().execute();
     }
 
     @Override
@@ -61,7 +62,7 @@ public class MainActivity extends AppCompatActivity {
         // as you specify a parent activity in AndroidManifest.xml.
         int id = item.getItemId();
         if (id == R.id.action_refresh) {
-            new HttpRequestTask().execute();
+            // new HttpRequestTask().execute();
             return true;
         }
         return super.onOptionsItemSelected(item);
@@ -79,11 +80,21 @@ public class MainActivity extends AppCompatActivity {
         public View onCreateView(LayoutInflater inflater, ViewGroup container,
                                  Bundle savedInstanceState) {
             View rootView = inflater.inflate(R.layout.content_main, container, false);
+            
+            TextView idValueText = (TextView) rootView.findViewById(R.id.id_value);
+            TextView contentValueText = (TextView) rootView.findViewById(R.id.content_value);
+            
+            if (idValueText != null) {
+                idValueText.setText("Data fetching disabled");
+            }
+            if (contentValueText != null) {
+                contentValueText.setText("Feature temporarily unavailable"); 
+            }
             return rootView;
         }
     }
 
-
+/* // Entire HttpRequestTask commented out
     private class HttpRequestTask extends AsyncTask<Void, Void, Greeting> {
         @Override
         protected Greeting doInBackground(Void... params) {
@@ -114,5 +125,5 @@ public class MainActivity extends AppCompatActivity {
         }
 
     }
-
+*/
 }

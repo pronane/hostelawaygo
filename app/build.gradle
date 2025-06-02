@@ -1,41 +1,51 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion 26
-    buildToolsVersion "26.0.1"
+    compileSdkVersion 34
+    namespace "hostelawaygo.com.rest" // Required for AGP 7.0+
+
     defaultConfig {
         applicationId "hostelawaygo.com.rest"
-        minSdkVersion 15
-        targetSdkVersion 26
+        minSdkVersion 21 // Increased to 21 for better androidx compatibility
+        targetSdkVersion 34
         versionCode 1
         versionName "1.0"
-        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
+
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
-    android {
-        packagingOptions {
-            exclude 'META-INF/LICENSE.txt'
-            exclude 'META-INF/NOTICE.txt'
-            exclude 'META-INF/LICENSE'
-            exclude 'META-INF/NOTICE'
-        }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    
+    packagingOptions { // Kept from original
+        exclude 'META-INF/LICENSE.txt'
+        exclude 'META-INF/NOTICE.txt'
+        exclude 'META-INF/LICENSE'
+        exclude 'META-INF/NOTICE'
     }
 }
 
 dependencies {
-    compile fileTree(dir: 'libs', include: ['*.jar'])
-    androidTestCompile('com.android.support.test.espresso:espresso-core:2.2.2', {
-        exclude group: 'com.android.support', module: 'support-annotations'
-    })
-    compile 'com.android.support:appcompat-v7:26.+'
-    compile 'com.android.support.constraint:constraint-layout:1.0.2'
-    compile 'com.android.support:design:26.+'
-    compile 'org.springframework.android:spring-android-rest-template:1.0.1.RELEASE'
-    compile 'com.fasterxml.jackson.core:jackson-databind:2.3.2'
-    testCompile 'junit:junit:4.12'
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'com.google.android.material:material:1.10.0' // Replaces design support
+
+    // Attempt to include Spring Android Rest Template (HIGH RISK)
+    // implementation 'org.springframework.android:spring-android-rest-template:1.0.1.RELEASE' // Commented out due to build/compatibility issues
+    // Jackson Databind (updated)
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.3'
+
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
 }
