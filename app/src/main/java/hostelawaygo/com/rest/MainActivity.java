@@ -1,10 +1,12 @@
 package hostelawaygo.com.rest;
 
-import android.os.AsyncTask; // AsyncTask is deprecated but may still work for this simple case.
+import android.content.Intent;
+import android.os.AsyncTask;
+import android.widget.Button;
+import com.hostelawaygo.android.EventsActivity;
 import android.os.Bundle;
-import androidx.fragment.app.Fragment;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
+import android.support.v4.app.Fragment;
+import android.support.v7.app.ActionBarActivity;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -13,26 +15,15 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
-// import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
-// import org.springframework.web.client.RestTemplate;
-// import hostelawaygo.com.rest.Greeting; // Assuming Greeting is only used by HttpRequestTask
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.web.client.RestTemplate;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends ActionBarActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
-
-        com.google.android.material.floatingactionbutton.FloatingActionButton fab = findViewById(R.id.fab);
-        fab.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                android.widget.Toast.makeText(MainActivity.this, "FAB Clicked! Email action would go here.", android.widget.Toast.LENGTH_LONG).show();
-            }
-        });
 
         if (savedInstanceState == null) {
             getSupportFragmentManager().beginTransaction()
@@ -44,22 +35,27 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
-        // new HttpRequestTask().execute();
+        new HttpRequestTask().execute();
     }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        // getMenuInflater().inflate(R.menu.menu_main, menu); // Commented out as refresh is removed
+
+        // Inflate the menu; this adds items to the action bar if it is present.
+        getMenuInflater().inflate(R.menu.menu_main, menu);
         return true;
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        // int id = item.getItemId();
-        // if (id == R.id.action_refresh) {
-            // new HttpRequestTask().execute();
-            // return true;
-        // } // Commented out as refresh is removed
+        // Handle action bar item clicks here. The action bar will
+        // automatically handle clicks on the Home/Up button, so long
+        // as you specify a parent activity in AndroidManifest.xml.
+        int id = item.getItemId();
+        if (id == R.id.action_refresh) {
+            new HttpRequestTask().execute();
+            return true;
+        }
         return super.onOptionsItemSelected(item);
     }
 
@@ -72,15 +68,25 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @Override
+
         public View onCreateView(LayoutInflater inflater, ViewGroup container,
                                  Bundle savedInstanceState) {
             View rootView = inflater.inflate(R.layout.content_main, container, false);
-            // UI text is now set directly in R.layout.content_main, no need to set it here.
+
+            Button navigateButton = rootView.findViewById(R.id.navigate_to_events_button);
+            navigateButton.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    Intent intent = new Intent(getActivity(), EventsActivity.class);
+                    startActivity(intent);
+                }
+            });
+
             return rootView;
         }
     }
 
-/* // Entire HttpRequestTask commented out
+
     private class HttpRequestTask extends AsyncTask<Void, Void, Greeting> {
         @Override
         protected Greeting doInBackground(Void... params) {
@@ -101,15 +107,10 @@ public class MainActivity extends AppCompatActivity {
         protected void onPostExecute(Greeting greeting) {
             TextView greetingIdText = (TextView) findViewById(R.id.id_value);
             TextView greetingContentText = (TextView) findViewById(R.id.content_value);
-            if (greeting != null) {
-                greetingIdText.setText(greeting.getId());
-                greetingContentText.setText(greeting.getContent());
-            } else {
-                greetingIdText.setText("Error");
-                greetingContentText.setText("Error fetching data");
-            }
+            greetingIdText.setText(greeting.getId());
+            greetingContentText.setText(greeting.getContent());
         }
 
     }
-*/
+
 }

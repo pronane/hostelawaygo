@@ -21,6 +21,9 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name="com.hostelawaygo.android.EventsActivity"
+            android:label="@string/title_activity_events" />
     </application>
 
 </manifest>
