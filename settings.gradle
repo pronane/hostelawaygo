@@ -1,1 +1,12 @@
-include ':myapplication'
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+include ':app'
+// We are intentionally omitting ':myapplication' for now to simplify the build
+// and focus on the ':app' module. If it was there due to a previous subtask error,
+// this will correct it.
