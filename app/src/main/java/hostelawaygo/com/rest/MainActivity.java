@@ -5,8 +5,8 @@ import android.os.AsyncTask;
 import android.widget.Button;
 import com.hostelawaygo.android.EventsActivity;
 import android.os.Bundle;
-import android.support.v4.app.Fragment;
-import android.support.v7.app.ActionBarActivity;
+import androidx.fragment.app.Fragment; // Changed
+import androidx.appcompat.app.AppCompatActivity; // Added
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -18,7 +18,7 @@ import android.widget.TextView;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.web.client.RestTemplate;
 
-public class MainActivity extends ActionBarActivity {
+public class MainActivity extends AppCompatActivity { // Changed
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -105,10 +105,18 @@ public class MainActivity extends ActionBarActivity {
 
         @Override
         protected void onPostExecute(Greeting greeting) {
+            // findViewById is now correctly inherited from AppCompatActivity
             TextView greetingIdText = (TextView) findViewById(R.id.id_value);
             TextView greetingContentText = (TextView) findViewById(R.id.content_value);
-            greetingIdText.setText(greeting.getId());
-            greetingContentText.setText(greeting.getContent());
+            // Check if greeting is null to avoid NullPointerException if the network request fails
+            if (greeting != null) {
+                greetingIdText.setText(greeting.getId());
+                greetingContentText.setText(greeting.getContent());
+            } else {
+                // Optionally, handle the case where greeting is null, e.g., show an error message
+                greetingIdText.setText("Error");
+                greetingContentText.setText("Could not load greeting.");
+            }
         }
 
     }
