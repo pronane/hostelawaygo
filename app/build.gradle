@@ -10,6 +10,7 @@ android {
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner" // Updated
+        multiDexEnabled true
     }
     buildTypes {
         release {
@@ -24,15 +25,26 @@ android {
     }
 
     packagingOptions {
-        exclude 'META-INF/LICENSE.txt'
-        exclude 'META-INF/NOTICE.txt'
-        exclude 'META-INF/LICENSE'
-        exclude 'META-INF/NOTICE'
+        exclude 'META-INF/DEPENDENCIES'
+        exclude 'META-INF/LICENSE'    // General exclude
+        exclude 'META-INF/NOTICE'   // General exclude
+
+        // Use pickFirst for the specific problematic files and their common casings
+        pickFirst 'META-INF/license.txt'
+        pickFirst 'META-INF/LICENSE.txt'
+        pickFirst 'META-INF/notice.txt'
+        pickFirst 'META-INF/NOTICE.txt'
+
+        // Add these as they are common with Spring and might appear later
+        pickFirst 'META-INF/spring.handlers'
+        pickFirst 'META-INF/spring.schemas'
+        pickFirst 'META-INF/spring.tooling'
     }
 }
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation 'androidx.multidex:multidex:2.0.1'
     // AndroidX Test Dependencies
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
     androidTestImplementation 'androidx.test:rules:1.5.0'
