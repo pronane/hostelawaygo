@@ -1,6 +1,9 @@
 package hostelawaygo.com.rest;
 
+import android.content.Intent;
 import android.os.AsyncTask;
+import android.widget.Button;
+import com.hostelawaygo.android.EventsActivity;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.support.v7.app.ActionBarActivity;
@@ -65,9 +68,20 @@ public class MainActivity extends ActionBarActivity {
         }
 
         @Override
+
         public View onCreateView(LayoutInflater inflater, ViewGroup container,
                                  Bundle savedInstanceState) {
             View rootView = inflater.inflate(R.layout.content_main, container, false);
+
+            Button navigateButton = rootView.findViewById(R.id.navigate_to_events_button);
+            navigateButton.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    Intent intent = new Intent(getActivity(), EventsActivity.class);
+                    startActivity(intent);
+                }
+            });
+
             return rootView;
         }
     }

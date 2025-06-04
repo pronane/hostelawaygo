@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorPrimary">#3F51B5</color>
-    <color name="colorPrimaryDark">#303F9F</color>
-    <color name="colorAccent">#FF4081</color>
+    <color name="colorPrimary">#E0FFFF</color> <!-- LightCyan for pastel_header_teal -->
+    <color name="colorPrimaryDark">#B0E0E6</color> <!-- PowderBlue, or a darker shade of LightCyan -->
+    <color name="colorAccent">#FF80AB</color> <!-- Example: Pastel Pink, can be other accent -->
+
+    <color name="pastel_background_blue">#F0F8FF</color> <!-- AliceBlue -->
+    <color name="text_color_dark_muted">#696969</color>   <!-- DimGray -->
+    <color name="white">#FFFFFF</color>
 </resources>
