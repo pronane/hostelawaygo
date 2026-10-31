@@ -44,9 +44,13 @@ Signing up for real works too: scrypt-hashed password, 30-day httpOnly session c
 |---|---|
 | `/` | HERE — the current city's feed grouped by day, filter chips (`/?f=free`, `/?f=solo`, …), city switcher |
 | `/next` | NEXT — the next city's events filtered to your trip window; out-of-window cards are greyed, not hidden |
-| `/explore` | Every city, with its hostels and what's on |
+| `/explore` | Every **live** city, with its hostels and what's on; cities still in `opening` are named at the bottom as "opening next" |
+| `/c/[slug]` | Public city page — "What's on in Lisbon this week", grouped by day, with JSON-LD and a canonical URL. 404s unless the city is live |
+| `/stay/[slug]` | What a reception QR points at: records an anonymous arrival, remembers the hostel, drops you on that city's feed |
+| `/sitemap.xml`, `/robots.txt` | Live cities and public events in, sessions/bookings/admin/share-my-night out |
 | `/event/[id]` | Event detail: traveller lens, who's going, join, share, **persisted chat** with report links |
 | `/hostel/[slug]` | Hostel page, per-night availability for a date range, booking form |
+| `/hostel/[slug]/kit` | Partner kit (staff/admin): printable poster + dorm sticker with the hostel's QR, check-in lines, the attribution funnel |
 | `/booking/[code]` | Receipt, sandbox payment, cancellation |
 | `/trips` | Your bookings, grouped by city |
 | `/you` | Account, languages, joined events, email confirmation |
@@ -55,13 +59,19 @@ Signing up for real works too: scrypt-hashed password, 30-day httpOnly session c
 | `/verify?token=…` | Confirms an email address from the link we send |
 | `/login`, `/signup` | Real accounts (`?next=` is validated to stay on-site) |
 | `/post` | Hostel mode — publish tonight's event in about a minute (staff only) |
-| `/hostel-admin` | Portal: upcoming events, arrivals/bookings, reported chat, cancel event (staff only) |
+| `/hostel-admin` | Portal: attribution funnel, upcoming events, arrivals/bookings, reported chat, cancel event (staff only) |
+| `/admin/cities` | Ops: the city pipeline — readiness per city, and "open a city" (admin only) |
+| `/admin/cities/[slug]` | One city's launch bar, the five-week runbook, its partners, and the go-live switch (admin only) |
 | `/admin/ingest` | Ops console: run the Ticketmaster import, read the run log (admin only) |
 | `POST /api/join` | Toggle a join for the signed-in traveller → `{ joined, going }`, `401` when anonymous |
 | `POST /api/events` | Create a hostel event — `401` anonymous, `403` non-staff, hostel taken from the session |
 | `POST /api/ingest` | Runs the import. Requires `x-ingest-token` or an admin session |
 | `GET /api/events/[id]/stream` | SSE feed of new chat messages (`Last-Event-ID` aware) |
 | `POST /api/payments/webhook` | Signed provider callbacks: `payment.paid`, `payment.refunded`, `checkout.session.completed` |
+
+## Growth
+
+The three growth problems — hostel buy-in, traveller pull, and opening a new city the same way every time — are written up in [`docs/growth-playbook.md`](../../docs/growth-playbook.md), next to the routes that make each one measurable (`/hostel/[slug]/kit`, `/c/[slug]`, `/admin/cities`).
 
 ## Safety and trust
 
@@ -79,7 +89,8 @@ Signing up for real works too: scrypt-hashed password, 30-day httpOnly session c
 - **Payments have a lifecycle, not a toggle**: an idempotency key per booking+amount (double submits collide), a 30-minute hold window, `requires_payment → paid → refunded`, refunds on cancellation, and signed webhooks at `/api/payments/webhook`. With `STRIPE_SECRET_KEY` set the booking page hands off to a Stripe Checkout Session; without it the `sandbox` provider settles in-process. A payment that lands for a booking cancelled in the meantime is captured and refunded in one step, and only a full refund cancels the stay.
 - **Ingest** runs the full pipeline (fetch → normalise → upsert → revalidate) and logs every run to `ingest_runs`. Events are keyed on `external_id`, so re-running updates instead of duplicating.
 - **Distances are computed**, not stored: every hostel, city and event carries lat/lng, and walking time comes from a haversine from the guest's actual hostel (or the city centre when there's no trip yet).
-- **Multi-city**: Lisbon, Porto and Kraków, each with its own feed, hostels and timezone-aware wall-clock times.
+- **Multi-city, gated**: Lisbon and Porto are live; Kraków is `opening` and Budapest `planned`. A city is only visible to travellers once it clears the launch bar in `lib/cities.ts` — three partner hostels, two of them posting, seven events in the next fortnight, a centre and a launch date. `Go live` is refused by the server action, not just greyed out in the UI. Public surfaces (picker, Explore, `/c/[slug]`, sitemap) read `status = 'live'` only, and a stale city cookie can't 404 the feed.
+- **Attribution is a table, not a claim**: `/stay/<hostel>` records an anonymous arrival per browser per day; joining an event or booking a bed stamps it. That's the scan → join → book funnel a hostel sees in its own portal, scoped to its own QR.
 - **PWA**: manifest, maskable icons, installable, conservative service worker (network-first for pages; hashed assets cached only).
 
 ## Ingest
@@ -105,6 +116,7 @@ Imported events carry the venue's real coordinates (so walking times are correct
 | `PAYMENT_WEBHOOK_SECRET` | HMAC key for `/api/payments/webhook` | `dev-webhook-secret` in development; **every webhook rejected in production** |
 | `INGEST_TOKEN` | shared secret for `POST /api/ingest` and `npm run ingest` | `dev-ingest` in development; required in production (admin sessions still work) |
 | `RESEND_API_KEY` (+ `MAIL_FROM`, `APP_URL`) | sends email-confirmation links | no email; in development the link is shown on `/you` |
+| `APP_URL` | canonical origin for QR codes, sitemap and share links | `http://localhost:3000` |
 | `DEMO_LOGIN` | `1` enables one-click demo sign-in outside development | on in development only |
 
 Webhooks are signed Stripe-style: `stripe-signature: t=<unix>,v1=<hmac-sha256 of "${t}.${body}">`, five-minute replay window, 400 on a bad or stale signature. Handlers are idempotent, so retries are safe.
@@ -119,13 +131,15 @@ Webhooks are signed Stripe-style: `stripe-signature: t=<unix>,v1=<hmac-sha256 of
 ## Layout
 
 ```
-app/            routes: here, next, explore, event, hostel, booking, trips, you,
-                login, signup, post, hostel-admin, admin/ingest, api/{join,events,ingest}
-app/actions/    server actions: auth, city, chat, booking, staff, ingest
+app/            routes: here, next, explore, c/[slug], event, hostel, hostel/[slug]/kit,
+                stay/[slug], booking, trips, you, login, signup, post, hostel-admin,
+                admin/{cities,ingest}, sitemap, robots, api/{join,events,ingest}
+app/actions/    server actions: auth, city, cities (pipeline), chat, booking, staff, ingest
 components/     nav, account-block, aside, event-card, join-button, post-form,
                 city-picker, chat-live (SSE), share-button, sw-register
 lib/            db, schema, seed, seed-data, seed-extra, queries, auth, password,
-                payments, ingest, fixtures/, geo, time, format, types, constants
+                payments, ingest, fixtures/, geo, time, format, types, constants,
+                cities (launch bar), arrivals (QR attribution)
 scripts/        reset-db.mjs, ingest.mjs, make-icons.py
 public/         sw.js, icons/
 ```

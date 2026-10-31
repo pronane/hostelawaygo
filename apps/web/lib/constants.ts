@@ -22,9 +22,17 @@ export const FILTERS: { key: string; label: string }[] = [
   { key: "early", label: "Back by midnight" },
 ];
 
-export const CITIES = {
-  lisbon: { slug: "lisbon", name: "Lisbon", country: "Portugal", tz: "Europe/Lisbon" },
-  porto: { slug: "porto", name: "Porto", country: "Portugal", tz: "Europe/Lisbon" },
-} as const;
+// Cities live in the `cities` table, not here. Opening a city is an ops action,
+// and an ops action that needs a deploy is not repeatable.
 
-export type CitySlug = keyof typeof CITIES;
+/**
+ * Canonical origin for links that leave the app: QR codes on posters, the
+ * sitemap, share cards. Anything shown to a scanner has to be absolute, so
+ * APP_URL is the one setting a deployment must get right.
+ */
+export function appUrl(): string {
+  const configured = process.env.APP_URL?.trim().replace(/\/+$/, "");
+  if (configured) return configured;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return "http://localhost:3000";
+}

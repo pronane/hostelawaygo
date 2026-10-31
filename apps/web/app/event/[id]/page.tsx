@@ -4,10 +4,10 @@ import { JoinButton } from "@/components/join-button";
 import { ShareButton } from "@/components/share-button";
 import { ChatLive } from "@/components/chat-live";
 import { getCurrentUser } from "@/lib/auth";
-import { getEvent, getMessages, getWhoIsGoing } from "@/lib/queries";
+import { getCity, getEvent, getMessages, getWhoIsGoing } from "@/lib/queries";
 import { formatPriceRange, plural, walkLabel } from "@/lib/format";
 import { endTime, formatDay, formatSqlTime, timeOf } from "@/lib/time";
-import { CITIES, type CitySlug } from "@/lib/constants";
+
 
 export const dynamic = "force-dynamic";
 
@@ -18,11 +18,17 @@ type Props = {
 
 export async function generateMetadata({ params }: Props) {
   const { id } = await params;
+  // getEvent with no viewer already hides guests-only nights, so a null here
+  // means either "doesn't exist" or "not yours" — neither belongs in an index.
   const event = getEvent(Number(id), null);
-  if (!event) return { title: "Event not found" };
+  if (!event) return { title: "Event not found", robots: { index: false, follow: false } };
+
+  const description = `${formatDay(event.starts_at.slice(0, 10))} at ${timeOf(event.starts_at)} · ${event.venue}`;
   return {
     title: event.title,
-    description: `${formatDay(event.starts_at.slice(0, 10))} at ${timeOf(event.starts_at)} · ${event.venue}`,
+    description,
+    openGraph: { title: event.title, description, type: "article" },
+    ...(event.open_to_all === 0 ? { robots: { index: false, follow: false } } : {}),
   };
 }
 
@@ -45,7 +51,10 @@ export default async function EventPage({ params, searchParams }: Props) {
 
   const who = getWhoIsGoing(event.id);
   const messages = getMessages(event.id, user?.id ?? null);
-  const city = CITIES[event.city as CitySlug] ?? CITIES.lisbon;
+  // Cities are rows now, not a constant: a city opened in the console has to
+  // work here without a deploy.
+  const city = getCity(event.city);
+  const cityName = city?.name ?? event.city;
   const venueName = event.venue.split(" · ")[0];
   const soloLine =
     event.going > 0
@@ -54,7 +63,7 @@ export default async function EventPage({ params, searchParams }: Props) {
 
   const lens = [soloLine, ...event.lens];
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-    `${venueName}, ${city.name}`
+    `${venueName}, ${cityName}`
   )}`;
 
   return (

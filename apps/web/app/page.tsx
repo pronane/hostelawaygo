@@ -4,31 +4,43 @@ import { EventCard } from "@/components/event-card";
 import { CityPicker } from "@/components/city-picker";
 import { FILTERS } from "@/lib/constants";
 import { CITY_COOKIE, getCurrentUser } from "@/lib/auth";
-import { getCities, getCity, getCityEvents, getTrip, groupByDay } from "@/lib/queries";
+import {
+  getCityEvents,
+  getHostelBySlug,
+  getLiveCities,
+  getLiveCityOr,
+  getTrip,
+  groupByDay,
+} from "@/lib/queries";
 import { addDays, dayHeading, formatDay, nightsBetween, todayISO } from "@/lib/time";
 import { plural } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
 type Props = {
-  searchParams: Promise<{ f?: string; denied?: string }>;
+  searchParams: Promise<{ f?: string; denied?: string; from?: string }>;
 };
 
 export default async function HerePage({ searchParams }: Props) {
-  const { f, denied } = await searchParams;
+  const { f, denied, from } = await searchParams;
   const filter = FILTERS.some((x) => x.key === f) ? (f as string) : "all";
   const today = todayISO();
 
   const user = await getCurrentUser();
   const jar = await cookies();
-  const slug = jar.get(CITY_COOKIE)?.value ?? "lisbon";
-  const city = getCity(slug) ?? getCity("lisbon")!;
+  // A cookie can outlive a city going back to "opening", so it is never
+  // trusted on its own: resolve against the live set every time.
+  const city = getLiveCityOr(jar.get(CITY_COOKIE)?.value)!;
 
   const events = getCityEvents(city.slug, today, addDays(today, 7), user?.id ?? null);
   const filtered = filter === "all" ? events : events.filter((e) => e.tags.includes(filter));
   const groups = groupByDay(filtered);
   const trip = getTrip(city.slug, user?.id ?? null);
-  const cities = getCities();
+  const cities = getLiveCities();
+  // A scan from a hostel in a city that isn't live yet must not greet you with
+  // somebody else's city in the feed below.
+  const scanned = from ? getHostelBySlug(from) : undefined;
+  const fromHostel = scanned?.city === city.slug ? scanned : undefined;
 
   return (
     <>
@@ -55,6 +67,20 @@ export default async function HerePage({ searchParams }: Props) {
           </div>
         ) : null}
       </header>
+
+      {fromHostel ? (
+        <div className="notice" role="status">
+          <span aria-hidden="true">📱</span>
+          <span>
+            <b>Checked in at {fromHostel.name}?</b> Everything below is {plural(events.length, "thing")} on
+            this week within walking distance of {fromHostel.area}.{" "}
+            <Link href={`/hostel/${fromHostel.slug}`} style={{ textDecoration: "underline" }}>
+              Book another night
+            </Link>
+            .
+          </span>
+        </div>
+      ) : null}
 
       {denied ? (
         <div className="notice warn" role="alert">

@@ -1,5 +1,8 @@
 import type { Source, WindowStatus } from "./constants";
 
+/** planned: a target, opening: being filled, live: safe to show travellers. */
+export type CityStatus = "planned" | "opening" | "live";
+
 export type City = {
   slug: string;
   name: string;
@@ -9,6 +12,8 @@ export type City = {
   intro: string;
   lat: number;
   lng: number;
+  status: CityStatus;
+  launch_on: string | null;
 };
 
 export type Hostel = {

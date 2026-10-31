@@ -2,7 +2,14 @@ import type { Db } from "./sqlite";
 import { SCHEMA_VERSION } from "./schema";
 import { hashPassword } from "./password";
 import { EVENTS, HOSTELS, TRAVELLERS } from "./seed-data";
-import { ACCOUNTS, CITIES, EXTRA_EVENTS, ROOM_TEMPLATES, SEED_MESSAGES } from "./seed-extra";
+import {
+  ACCOUNTS,
+  CITIES,
+  EXTRA_EVENTS,
+  EXTRA_PORTO_EVENTS,
+  ROOM_TEMPLATES,
+  SEED_MESSAGES,
+} from "./seed-extra";
 import { addDays, todayISO } from "./time";
 import { CITY_CENTRE, HOSTEL_COORDS, coordsForVenue } from "./geo";
 
@@ -31,12 +38,26 @@ export function seed(db: Db): void {
   const run = db.transaction(() => {
     /* cities */
     const insCity = db.prepare(
-      `INSERT INTO cities (slug, name, country, tz, emoji, intro, lat, lng)
-       VALUES (@slug, @name, @country, @tz, @emoji, @intro, @lat, @lng)`
+      `INSERT INTO cities (slug, name, country, tz, emoji, intro, lat, lng, status, launch_on)
+       VALUES (@slug, @name, @country, @tz, @emoji, @intro, @lat, @lng, @status, @launch_on)`
     );
     for (const c of CITIES) {
       const centre = CITY_CENTRE[c.slug] ?? CITY_CENTRE.lisbon;
-      insCity.run({ ...c, lat: centre.lat, lng: centre.lng });
+      // A planned city has no record yet: the console shows it as the first
+      // gate still open, which is the honest state of a city nobody has visited.
+      const planned = c.status === "planned";
+      insCity.run({
+        slug: c.slug,
+        name: c.name,
+        country: c.country,
+        tz: c.tz,
+        emoji: c.emoji,
+        intro: c.intro,
+        lat: planned ? 0 : centre.lat,
+        lng: planned ? 0 : centre.lng,
+        status: c.status,
+        launch_on: c.launchInDays === null ? null : addDays(today, c.launchInDays),
+      });
     }
 
     /* hostels */
@@ -151,7 +172,7 @@ export function seed(db: Db): void {
     `);
     const insJoin = db.prepare("INSERT OR IGNORE INTO joins (event_id, traveller_id) VALUES (?, ?)");
 
-    const allEvents = [...EVENTS, ...EXTRA_EVENTS];
+    const allEvents = [...EVENTS, ...EXTRA_EVENTS, ...EXTRA_PORTO_EVENTS];
     const pool = Array.from({ length: TRAVELLERS.length - 1 }, (_, i) => i + 2);
     const eventIdByTitle = new Map<string, number>();
 
@@ -245,6 +266,37 @@ export function seed(db: Db): void {
         total
       );
     }
+
+    /* reception QR traffic: what a partner's dashboard is looking at */
+    const insArrival = db.prepare(
+      `INSERT OR IGNORE INTO arrivals (hostel_id, visitor, day, traveller_id, joined_at, booked_at)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    );
+    const arrivalsHostel = hostelIdBySlug.get("home-lisbon")!;
+    const travellerIds = db
+      .prepare("SELECT id FROM travellers ORDER BY id")
+      .all<{ id: number }>()
+      .map((r) => r.id);
+    const stamp = (daysAgo: number) =>
+      new Date(Date.now() - daysAgo * 86_400_000).toISOString();
+
+    // 46 scans over a fortnight, 18 of which turn into a signed-in traveller,
+    // 11 of those join something, and 4 go on to book. Deliberately lumpy: real
+    // reception traffic is not a straight line.
+    for (let i = 0; i < 46; i += 1) {
+      const day = addDays(today, -(i % 14));
+      const linked = i < 18 ? travellerIds[i % travellerIds.length] : null;
+      const joined = linked && i < 11 ? stamp(i % 6) : null;
+      // Only one stamped booking, because only one real booking row exists —
+      // a funnel that overcounts is a funnel a hostel stops trusting.
+      const booked = i === 0 ? stamp(2) : null;
+      insArrival.run(arrivalsHostel, `seed-visitor-${i}`, day, linked, joined, booked);
+    }
+    // The demo traveller's own booking, so the funnel and the revenue agree.
+    db.prepare(
+      `UPDATE arrivals SET traveller_id = ?, booked_at = datetime('now', '-2 days')
+       WHERE hostel_id = ? AND visitor = 'seed-visitor-0'`
+    ).run(martaId, arrivalsHostel);
 
     /* meta */
     db.prepare("INSERT INTO meta (key, value) VALUES ('schema_version', ?)").run(SCHEMA_VERSION);

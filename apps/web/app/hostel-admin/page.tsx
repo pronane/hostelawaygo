@@ -4,6 +4,7 @@ import { requireStaff } from "@/lib/auth";
 import {
   getBookingsForHostel,
   getHostels,
+  getPartnerStats,
   getReportedMessages,
   getStaffEvents,
   getStaffStats,
@@ -29,6 +30,8 @@ export default async function HostelAdminPage({
   const events = getStaffEvents(hostel.id, user.id);
   const bookings = getBookingsForHostel(hostel.id);
   const reported = getReportedMessages(hostel.id);
+  const partner = getPartnerStats(hostel.id);
+  const scanToJoin = partner.opens > 0 ? Math.round((partner.joins / partner.opens) * 100) : 0;
 
   return (
     <>
@@ -90,6 +93,43 @@ export default async function HostelAdminPage({
           See the guest view
         </Link>
       </div>
+
+      <section style={{ marginTop: 30 }}>
+        <div className="day">
+          <h2>Where your guests come from</h2>
+          <span>last {partner.days} days · reception QR</span>
+        </div>
+        <div className="stat-row">
+          <div className="stat">
+            <b>{partner.opens}</b>
+            <span>SCANS</span>
+          </div>
+          <div className="stat">
+            <b>{partner.joins}</b>
+            <span>JOINED A NIGHT</span>
+          </div>
+          <div className="stat">
+            <b>{scanToJoin}%</b>
+            <span>SCAN → JOIN</span>
+          </div>
+          <div className="stat">
+            <b>{partner.bookings}</b>
+            <span>BEDS BOOKED</span>
+          </div>
+          <div className="stat">
+            <b>{formatPrice(partner.revenue)}</b>
+            <span>BOOKING VALUE</span>
+          </div>
+        </div>
+        <div className="cta-row">
+          <Link href={`/hostel/${hostel.slug}/kit`} className="btn primary" style={{ flex: "0 0 auto" }}>
+            Open your partner kit
+          </Link>
+          <span style={{ fontSize: 11.5, color: "#8b7d72", alignSelf: "center", lineHeight: 1.5 }}>
+            Poster, dorm sticker and check-in lines — printable.
+          </span>
+        </div>
+      </section>
 
       <section style={{ marginTop: 30 }}>
         <div className="day">

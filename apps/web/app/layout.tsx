@@ -6,10 +6,14 @@ import { AccountBlock } from "@/components/account-block";
 import { Aside } from "@/components/aside";
 import { SwRegister } from "@/components/sw-register";
 import { getCurrentUser, isStaff } from "@/lib/auth";
+import { appUrl } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
+  // Absolute URLs for canonical, Open Graph and the sitemap. A relative
+  // canonical is a canonical nobody can resolve.
+  metadataBase: new URL(appUrl()),
   title: {
     default: "Away — what's on, here and next",
     template: "%s · Away",

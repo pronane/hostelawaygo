@@ -1,13 +1,15 @@
 import Link from "next/link";
-import { getCities, getHostels } from "@/lib/queries";
+import { getCities, getHostels, getLiveCities } from "@/lib/queries";
 import { formatPrice, plural } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Explore" };
 
 export default async function ExplorePage() {
-  const cities = getCities();
+  const cities = getLiveCities();
   const hostels = getHostels();
+  // Cities in the pipeline are named, not offered: the bar is the promise.
+  const opening = getCities().filter((c) => c.status === "opening");
 
   return (
     <>
@@ -59,6 +61,20 @@ export default async function ExplorePage() {
           );
         })}
       </div>
+
+      {opening.length > 0 ? (
+        <section style={{ marginTop: 30 }}>
+          <div className="day">
+            <h2>Opening next</h2>
+            <span>not open until there are enough nights to fill an evening</span>
+          </div>
+          <p style={{ fontSize: 12.5, color: "#7b6e64", lineHeight: 1.7, margin: "0 2px" }}>
+            {opening.map((c) => c.name).join(", ")} — we switch a city on when{" "}
+            {opening.length === 1 ? "it has" : "it has"} three hostels posting and a fortnight of
+            things to do. A city guide that opens half-empty is a city guide nobody opens twice.
+          </p>
+        </section>
+      ) : null}
     </>
   );
 }
