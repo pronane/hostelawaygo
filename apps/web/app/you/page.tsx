@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { logoutAction } from "@/app/actions/auth";
+import { resendVerificationAction } from "@/app/actions/verify";
+import { getSafeNights } from "@/lib/safe";
 import { getCurrentUser } from "@/lib/auth";
 import { getBookingsForUser, getJoinedCount, getTrips } from "@/lib/queries";
 import { formatDay, formatShortDate, todayISO } from "@/lib/time";
@@ -8,7 +10,18 @@ import { plural } from "@/lib/format";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "You" };
 
-export default async function YouPage() {
+const VERIFY_NOTES: Record<string, string> = {
+  sent: "Sent — check your inbox (and spam) for the link.",
+  wait: "We sent a link less than a minute ago. Give it a moment.",
+  failed: "We couldn't send the email just now. Try again shortly.",
+};
+
+export default async function YouPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ verify?: string; verified?: string; link?: string }>;
+}) {
+  const { verify, verified, link } = await searchParams;
   const today = todayISO();
   const user = await getCurrentUser();
 
@@ -49,6 +62,38 @@ export default async function YouPage() {
         </p>
       </header>
 
+      {verified === "1" ? (
+        <div className="notice" role="status" style={{ marginBottom: 14 }}>
+          <span aria-hidden="true">✓</span>
+          <span><b>Email confirmed.</b> Event chats are open to you now.</span>
+        </div>
+      ) : verified === "0" ? (
+        <div className="notice warn" role="alert" style={{ marginBottom: 14 }}>
+          <span aria-hidden="true">!</span>
+          <span>That link has expired or was already used. Send yourself a new one below.</span>
+        </div>
+      ) : null}
+
+      {!user.email_verified && user.email ? (
+        <div className="notice warn" style={{ marginBottom: 14, alignItems: "center" }}>
+          <span aria-hidden="true">✉️</span>
+          <span style={{ flex: 1 }}>
+            <b>Confirm {user.email}</b> to chat in events.{" "}
+            {verify === "dev" && link && process.env.NODE_ENV !== "production" ? (
+              <>
+                No email provider is set up, so here&apos;s the link:{" "}
+                <a href={link} style={{ textDecoration: "underline" }}>confirm my email</a>
+              </>
+            ) : verify && VERIFY_NOTES[verify] ? (
+              VERIFY_NOTES[verify]
+            ) : null}
+          </span>
+          <form action={resendVerificationAction}>
+            <button type="submit" className="btn">Send link</button>
+          </form>
+        </div>
+      ) : null}
+
       <div className="you-grid">
         <section className="panel">
           <div className="panel-head">Your trips</div>
@@ -78,6 +123,15 @@ export default async function YouPage() {
         <section className="panel">
           <div className="panel-head">Things you can do</div>
           <div className="stack-links">
+            <Link href="/safe">
+              <b>Share my night</b>
+              <span>
+                {(() => {
+                  const out = getSafeNights(user.id).filter((n) => !n.cancelled && !n.home_at).length;
+                  return out ? `${out} open — tap "I'm home" when you're back` : "Let a friend know where you're going";
+                })()}
+              </span>
+            </Link>
             <Link href="/trips">
               <b>Your bookings</b>
               <span>{plural(bookings.length, "booking")}, with payment and cancellation</span>

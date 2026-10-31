@@ -14,6 +14,7 @@ export const FILTERS: { key: string; label: string }[] = [
   { key: "all", label: "Everything" },
   { key: "free", label: "Free" },
   { key: "solo", label: "Good solo" },
+  { key: "hostels", label: "Hostel socials" },
   { key: "music", label: "Music" },
   { key: "food", label: "Food" },
   { key: "outdoors", label: "Outdoors" },

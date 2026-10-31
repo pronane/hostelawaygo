@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = "4";
+export const SCHEMA_VERSION = "5";
 
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS meta (
@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS travellers (
   password_hash TEXT,
   role TEXT NOT NULL DEFAULT 'traveller',
   hostel_id INTEGER,
+  email_verified_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -73,7 +74,8 @@ CREATE TABLE IF NOT EXISTS events (
   created_by TEXT NOT NULL DEFAULT 'seed',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   external_id TEXT,
-  origin TEXT NOT NULL DEFAULT 'seed'
+  origin TEXT NOT NULL DEFAULT 'seed',
+  open_to_all INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_events_external ON events(city, external_id);
@@ -160,6 +162,31 @@ CREATE TABLE IF NOT EXISTS payments (
 );
 CREATE INDEX IF NOT EXISTS idx_payments_booking ON payments(booking_id);
 
+-- One-time email verification links. Only a SHA-256 of the token is stored.
+CREATE TABLE IF NOT EXISTS email_tokens (
+  token_hash TEXT PRIMARY KEY,
+  traveller_id INTEGER NOT NULL REFERENCES travellers(id) ON DELETE CASCADE,
+  expires_at TEXT NOT NULL,
+  used_at TEXT
+);
+
+-- "Share my night": a link a friend can open to see where you went and
+-- whether you've checked in home safe.
+CREATE TABLE IF NOT EXISTS safe_nights (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  token TEXT NOT NULL UNIQUE,
+  traveller_id INTEGER NOT NULL REFERENCES travellers(id) ON DELETE CASCADE,
+  event_id INTEGER REFERENCES events(id) ON DELETE SET NULL,
+  plan TEXT NOT NULL,
+  friend_name TEXT NOT NULL DEFAULT '',
+  back_by TEXT NOT NULL,
+  tz TEXT NOT NULL DEFAULT 'Europe/Lisbon',
+  created_at TEXT NOT NULL,
+  home_at TEXT,
+  cancelled INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_safe_nights_user ON safe_nights(traveller_id);
+
 CREATE TABLE IF NOT EXISTS ingest_runs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   source TEXT NOT NULL,
@@ -177,6 +204,8 @@ CREATE TABLE IF NOT EXISTS ingest_runs (
 
 /** Dropped in this order so foreign keys stay happy. */
 export const DROP_ALL = `
+DROP TABLE IF EXISTS safe_nights;
+DROP TABLE IF EXISTS email_tokens;
 DROP TABLE IF EXISTS payments;
 DROP TABLE IF EXISTS bookings;
 DROP TABLE IF EXISTS rooms;

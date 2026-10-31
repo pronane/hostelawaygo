@@ -30,6 +30,7 @@ const CHAT_NOTES: Record<string, string> = {
   slow: "Slow down a second — you've sent a lot of messages in the last few minutes.",
   empty: "Nothing to send there.",
   reported: "Thanks — a hostel host will look at that message.",
+  verify: "Confirm your email to chat — we sent you a link. Lost it? Send a new one from the You page.",
 };
 
 export default async function EventPage({ params, searchParams }: Props) {
@@ -82,6 +83,9 @@ export default async function EventPage({ params, searchParams }: Props) {
 
       <div className="row1" style={{ marginTop: 16 }}>
         <span className={`badge ${event.source}`}>{event.source}</span>
+        {event.open_to_all === 0 ? (
+          <span className="badge" style={{ background: "#f3ede6", color: "#6b5b50" }}>guests only</span>
+        ) : null}
         {event.hostel_slug ? (
           <Link href={`/hostel/${event.hostel_slug}`} className="badge" style={{ background: "#f3ede6", color: "#6b5b50" }}>
             {event.hostel_name} · book a bed
@@ -164,6 +168,16 @@ export default async function EventPage({ params, searchParams }: Props) {
         ) : null}
         <ShareButton title={event.title} />
       </div>
+
+      {user ? (
+        <p style={{ fontSize: 12.5, color: "#6b5b50", margin: "10px 0 0" }}>
+          🛟 Heading out alone?{" "}
+          <Link href={`/safe?event=${event.id}`} style={{ textDecoration: "underline" }}>
+            Share your night with a friend
+          </Link>{" "}
+          — they&apos;ll see when you check in home.
+        </p>
+      ) : null}
 
       <section id="chat" className="chat">
         {chat && CHAT_NOTES[chat] ? (

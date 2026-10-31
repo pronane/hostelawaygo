@@ -47,7 +47,10 @@ Signing up for real works too: scrypt-hashed password, 30-day httpOnly session c
 | `/hostel/[slug]` | Hostel page, per-night availability for a date range, booking form |
 | `/booking/[code]` | Receipt, sandbox payment, cancellation |
 | `/trips` | Your bookings, grouped by city |
-| `/you` | Account, languages, joined events |
+| `/you` | Account, languages, joined events, email confirmation |
+| `/safe` | Share my night: where you're going, back-by time, "I'm home safe" / "running late" |
+| `/safe/[token]` | The friend's view — first name, plan, back-by time, live status (out / home safe / overdue). No sign-in, not indexed |
+| `/verify?token=…` | Confirms an email address from the link we send |
 | `/login`, `/signup` | Real accounts (`?next=` is validated to stay on-site) |
 | `/post` | Hostel mode — publish tonight's event in about a minute (staff only) |
 | `/hostel-admin` | Portal: upcoming events, arrivals/bookings, reported chat, cancel event (staff only) |
@@ -57,6 +60,12 @@ Signing up for real works too: scrypt-hashed password, 30-day httpOnly session c
 | `POST /api/ingest` | Runs the import. Requires `x-ingest-token` or an admin session |
 | `GET /api/events/[id]/stream` | SSE feed of new chat messages (`Last-Event-ID` aware) |
 | `POST /api/payments/webhook` | Signed provider callbacks: `payment.paid`, `payment.refunded`, `checkout.session.completed` |
+
+## Safety and trust
+
+- **Share my night** (`/safe`, linked from every event page): tell a friend where you're going and when you'll be back. They get a link showing *out*, *home safe at 01:12*, or *overdue by 25 minutes* with advice to call you, then the hostel or 112. "Running late" adds an hour. The friend sees your first name and plan, nothing else.
+- **Email confirmation**: new sign-ups get a one-time link (48 h, only a SHA-256 of the token stored); event chats open once it's clicked. Seeded demo accounts are pre-confirmed.
+- **Guests-only events**: hostels choose "open to travellers from other hostels" (default) or guests only. Guests-only events — and their chats — are visible to people with a trip or booking at that hostel, its staff and admins. The **Hostel socials** filter shows every hostel's open events in the city.
 
 ## What is actually real
 
@@ -88,8 +97,10 @@ Imported events carry the venue's real coordinates (so walking times are correct
 |---|---|---|
 | `TICKETMASTER_API_KEY` | live Discovery API pulls | bundled fixture replay |
 | `STRIPE_SECRET_KEY` | booking page redirects to Stripe Checkout; webhooks confirm | `sandbox` provider settles in-process |
-| `PAYMENT_WEBHOOK_SECRET` | HMAC key for `/api/payments/webhook` | falls back to `dev-webhook-secret` (dev only) |
-| `INGEST_TOKEN` | shared secret for `POST /api/ingest` | falls back to `dev-ingest` |
+| `PAYMENT_WEBHOOK_SECRET` | HMAC key for `/api/payments/webhook` | `dev-webhook-secret` in development; **every webhook rejected in production** |
+| `INGEST_TOKEN` | shared secret for `POST /api/ingest` | `dev-ingest` in development; only admin sessions in production |
+| `RESEND_API_KEY` (+ `MAIL_FROM`, `APP_URL`) | sends email-confirmation links | no email; in development the link is shown on `/you` |
+| `DEMO_LOGIN` | `1` enables one-click demo sign-in outside development | on in development only |
 
 Webhooks are signed Stripe-style: `stripe-signature: t=<unix>,v1=<hmac-sha256 of "${t}.${body}">`, five-minute replay window, 400 on a bad or stale signature. Handlers are idempotent, so retries are safe.
 

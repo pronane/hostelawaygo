@@ -1,0 +1,38 @@
+name: Away CI
+on:
+  push:
+    branches: [master, "claude/**"]
+    paths: ["apps/web/**", ".github/workflows/away-ci.yml"]
+  pull_request:
+    paths: ["apps/web/**", ".github/workflows/away-ci.yml"]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Build
+        run: npm run build
+      - name: Smoke test
+        env:
+          AWAY_DB_PATH: ${{ runner.temp }}/away-ci.db
+        run: |
+          npm run start -- -p 3100 > server.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:3100/ > /dev/null && break; sleep 1; done
+          check() { code=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:3100$1"); echo "$1 -> $code"; [ "$code" = "$2" ] || { cat server.log; exit 1; }; }
+          check / 200
+          check "/?f=hostels" 200
+          check /login 200
+          check /safe 307
+          check /safe/00000000000000000000000000000000 404
+          check "/verify?token=nope" 303
