@@ -1,0 +1,123 @@
+{
+  "city": {
+    "slug": "seville",
+    "name": "Seville",
+    "country": "Spain",
+    "status": "prospect",
+    "lat": 37.3891,
+    "lng": -5.9845,
+    "launchNote": "We're opening Seville in January — a dozen hostels around the centre, so a guest arriving on a Tuesday has something to walk to."
+  },
+  "prospects": [
+    {
+      "name": "Casa Naranja Hostel",
+      "area": "Triana",
+      "beds": 42,
+      "website": "https://casanaranja.example",
+      "email": "reservas@casanaranja.example",
+      "evidenceUrl": "https://casanaranja.example/contacto",
+      "evidenceText": "DEMO RECORD — reserved .example address. Real runs take the address from the hostel's own contact page.",
+      "source": "fixture",
+      "sourceUrl": "https://www.openstreetmap.org/demo/1"
+    },
+    {
+      "name": "La Giralda Backpackers",
+      "area": "Santa Cruz",
+      "beds": 88,
+      "website": "https://lagiralda.example",
+      "email": "info@lagiralda.example",
+      "evidenceUrl": "https://lagiralda.example/",
+      "evidenceText": "DEMO RECORD — reserved .example address. Real runs take the address from the hostel's own contact page.",
+      "source": "fixture",
+      "sourceUrl": "https://www.openstreetmap.org/demo/2"
+    },
+    {
+      "name": "Triana Riverside Hostel",
+      "area": "Triana",
+      "beds": 36,
+      "website": "https://rianahostel.example",
+      "email": "hello@rianahostel.example",
+      "evidenceUrl": "https://rianahostel.example/contact",
+      "evidenceText": "DEMO RECORD — reserved .example address. Real runs take the address from the hostel's own contact page.",
+      "source": "fixture",
+      "sourceUrl": "https://www.openstreetmap.org/demo/3"
+    },
+    {
+      "name": "Alameda Social Hostel",
+      "area": "Alameda de Hércules",
+      "beds": 120,
+      "website": "https://alamedasocial.example",
+      "email": "reception@alamedasocial.example",
+      "evidenceUrl": "https://alamedasocial.example/es/contacto",
+      "evidenceText": "DEMO RECORD — reserved .example address. Real runs take the address from the hostel's own contact page.",
+      "source": "fixture",
+      "sourceUrl": "https://www.openstreetmap.org/demo/4"
+    },
+    {
+      "name": "Santa Cruz Courtyard",
+      "area": "Santa Cruz",
+      "beds": 24,
+      "website": "https://santacruzcourtyard.example",
+      "email": "bookings@santacruzcourtyard.example",
+      "evidenceUrl": "https://santacruzcourtyard.example/book",
+      "evidenceText": "DEMO RECORD — reserved .example address. Real runs take the address from the hostel's own contact page.",
+      "source": "fixture",
+      "sourceUrl": "https://www.openstreetmap.org/demo/5"
+    },
+    {
+      "name": "Macarena Loft Hostel",
+      "area": "Macarena",
+      "beds": 30,
+      "website": "https://macarenaloft.example",
+      "email": "hola@macarenaloft.example",
+      "evidenceUrl": "https://macarenaloft.example/contacto",
+      "evidenceText": "DEMO RECORD — reserved .example address. Real runs take the address from the hostel's own contact page.",
+      "source": "fixture",
+      "sourceUrl": "https://www.openstreetmap.org/demo/6"
+    },
+    {
+      "name": "Puerta Osario Guesthouse",
+      "area": "Centro",
+      "beds": 16,
+      "website": "https://puertaosario.example",
+      "email": "info@puertaosario.example",
+      "evidenceUrl": "https://puertaosario.example/",
+      "evidenceText": "DEMO RECORD — reserved .example address. Real runs take the address from the hostel's own contact page.",
+      "source": "fixture",
+      "sourceUrl": "https://www.openstreetmap.org/demo/7"
+    },
+    {
+      "name": "Betis Bunkhouse",
+      "area": "Nervión",
+      "beds": 54,
+      "website": "https://betisbunkhouse.example",
+      "email": "frontdesk@betisbunkhouse.example",
+      "evidenceUrl": "https://betisbunkhouse.example/en/contact",
+      "evidenceText": "DEMO RECORD — reserved .example address. Real runs take the address from the hostel's own contact page.",
+      "source": "fixture",
+      "sourceUrl": "https://www.openstreetmap.org/demo/8"
+    },
+    {
+      "name": "Feria Guest Rooms",
+      "area": "Feria",
+      "beds": 12,
+      "website": "https://feriaguestrooms.example",
+      "email": "",
+      "evidenceUrl": "",
+      "evidenceText": "",
+      "source": "fixture",
+      "sourceUrl": "https://www.openstreetmap.org/demo/9"
+    },
+    {
+      "name": "Calle Sol Rooms",
+      "area": "Centro",
+      "beds": 9,
+      "website": "",
+      "email": "",
+      "evidenceUrl": "",
+      "evidenceText": "",
+      "source": "fixture",
+      "sourceUrl": "https://www.openstreetmap.org/demo/10"
+    }
+  ]
+}

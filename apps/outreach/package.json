@@ -1,0 +1,23 @@
+{
+  "name": "away-outreach",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Find hostels in a new city, draft them a letter, and send nothing until a human approves it.",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "start": "node --no-warnings server.js",
+    "dev": "node --no-warnings --watch server.js",
+    "demo": "node --no-warnings scripts/cli.mjs demo",
+    "discover": "node --no-warnings scripts/cli.mjs discover",
+    "enrich": "node --no-warnings scripts/cli.mjs enrich",
+    "draft": "node --no-warnings scripts/cli.mjs draft",
+    "send": "node --no-warnings scripts/cli.mjs send",
+    "status": "node --no-warnings scripts/cli.mjs status",
+    "doctor": "node --no-warnings scripts/cli.mjs doctor",
+    "test": "node --no-warnings scripts/selftest.mjs",
+    "reset": "node --no-warnings scripts/cli.mjs reset"
+  }
+}
