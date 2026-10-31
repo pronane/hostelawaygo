@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { getEvent } from "@/lib/queries";
 import { createSafeNight, updateSafeNight } from "@/lib/safe";
-import { CITIES, type CitySlug } from "@/lib/constants";
+import { getCity } from "@/lib/queries";
 
 export async function createSafeNightAction(formData: FormData) {
   const user = await getCurrentUser();
@@ -26,7 +26,7 @@ export async function createSafeNightAction(formData: FormData) {
   const hoursAhead = (backBy.getTime() - Date.now()) / 3_600_000;
   if (hoursAhead < 0 || hoursAhead > 24) fail("time");
 
-  const tz = event ? (CITIES[event.city as CitySlug]?.tz ?? "Europe/Lisbon") : String(formData.get("tz") ?? "Europe/Lisbon").slice(0, 60);
+  const tz = event ? (getCity(event.city)?.tz ?? "Europe/Lisbon") : String(formData.get("tz") ?? "Europe/Lisbon").slice(0, 60);
   const token = createSafeNight({
     travellerId: user.id,
     eventId: event?.id ?? null,

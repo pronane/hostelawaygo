@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 
 const TEMPLATES: { label: string; title: string; category: string; price: string }[] = [
   { label: "Family dinner", title: "Family dinner at the hostel", category: "food", price: "Free" },
-  { label: "Pub crawl", title: "Pub crawl: Bairro Alto → Cais do Sodré", category: "nightlife", price: "12" },
-  { label: "Walking tour", title: "Sunset walking tour of Alfama", category: "outdoors", price: "Free" },
+  { label: "Pub crawl", title: "Pub crawl: three bars, one tab", category: "nightlife", price: "12" },
+  { label: "Walking tour", title: "Sunset walking tour with the group", category: "outdoors", price: "Free" },
   { label: "Beer Olympics", title: "Beer Olympics — teams drawn on the night", category: "social", price: "Free" },
   { label: "Live music", title: "Live music on the terrace", category: "music", price: "Free" },
 ];

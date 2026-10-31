@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { readVisitor } from "@/lib/arrivals";
 import { getCurrentUser } from "@/lib/auth";
 import { getEvent, toggleJoin } from "@/lib/queries";
 
@@ -26,5 +27,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unknown event" }, { status: 404 });
   }
 
-  return NextResponse.json(toggleJoin(eventId, user.id));
+  return NextResponse.json(toggleJoin(eventId, user.id, await readVisitor()));
 }

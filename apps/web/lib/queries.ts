@@ -1,6 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { getDb } from "./db";
 import type { Source, WindowStatus } from "./constants";
+import { launchGates, launchReadiness, recordComplete, type CitySupply, type Gate } from "./cities";
+import { LAUNCH_BAR } from "./cities";
 import { addDays, dateOf, diffDays, todayISO } from "./time";
 import { CITY_CENTRE, haversineMeters, walkMinutes } from "./geo";
 import { completePayment, getPaymentForBooking, openPayment, refundPayment } from "./payments";
@@ -8,6 +10,7 @@ import type {
   Booking,
   BookingDetail,
   City,
+  CityStatus,
   EventRow,
   FeedEvent,
   Hostel,
@@ -57,6 +60,9 @@ function walkOrigins(me: number | null): Map<string, WalkOrigin> {
   const origins = new Map<string, WalkOrigin>();
 
   for (const c of db.prepare("SELECT slug, lat, lng FROM cities").all<{ slug: string; lat: number; lng: number }>()) {
+    // A city that hasn't had its centre set yet is 0,0 — measuring from the
+    // Gulf of Guinea gives every event a 9,000 km walk.
+    if (c.lat === 0 && c.lng === 0) continue;
     origins.set(c.slug, { lat: c.lat, lng: c.lng, name: "the city centre" });
   }
 
@@ -77,10 +83,11 @@ function walkOrigins(me: number | null): Map<string, WalkOrigin> {
 
 function toFeedEvent(row: EventRow, origins: Map<string, WalkOrigin>): FeedEvent {
   const origin =
-    origins.get(row.city) ?? { ...(CITY_CENTRE[row.city] ?? CITY_CENTRE.lisbon), name: "the city centre" };
+    origins.get(row.city) ??
+    (CITY_CENTRE[row.city] ? { ...CITY_CENTRE[row.city], name: "the city centre" } : null);
 
   let walk = row.walk_minutes;
-  if (row.lat !== null && row.lng !== null && row.lat !== undefined && row.lng !== undefined) {
+  if (origin && row.lat !== null && row.lng !== null && row.lat !== undefined && row.lng !== undefined) {
     walk = walkMinutes(haversineMeters(origin, { lat: row.lat, lng: row.lng }));
   }
 
@@ -97,7 +104,7 @@ function toFeedEvent(row: EventRow, origins: Map<string, WalkOrigin>): FeedEvent
     avatars: row.avatars ? row.avatars.split(",") : [],
     source: row.source as Source,
     walk_minutes: walk,
-    walkFrom: walk === 0 ? "your hostel" : origin.name,
+    walkFrom: walk === 0 ? "your hostel" : (origin?.name ?? "the city centre"),
   };
 }
 
@@ -123,6 +130,257 @@ export function getCities(): (City & { events: number; hostels: number })[] {
 
 export function getCity(slug: string): City | undefined {
   return getDb().prepare("SELECT * FROM cities WHERE slug = ?").get<City>(slug);
+}
+
+/** Only these are safe to show a traveller: picker, explore, city pages, sitemap. */
+export function getLiveCities(): (City & { events: number; hostels: number })[] {
+  return getCities().filter((c) => c.status === "live");
+}
+
+/** Falls back to the first live city, so a stale cookie can't 404 the feed. */
+export function getLiveCityOr(slug: string | undefined, fallback = ""): City | undefined {
+  const wanted = slug ? getCity(slug) : undefined;
+  if (wanted?.status === "live") return wanted;
+  const named = fallback ? getCity(fallback) : undefined;
+  if (named?.status === "live") return named;
+  return getLiveCities()[0];
+}
+
+/**
+ * The numbers the launch bar is scored on. `postingHostels` is the honest one:
+ * a signed hostel that has never posted is a logo on a page, not supply.
+ */
+export function getCitySupply(slug: string, days = LAUNCH_BAR.windowDays): CitySupply {
+  const db = getDb();
+  const today = todayISO();
+  const to = addDays(today, days);
+
+  const hostels = db
+    .prepare("SELECT COUNT(*) AS n FROM hostels WHERE city = ?")
+    .get<{ n: number }>(slug)!.n;
+
+  const posting = db
+    .prepare(
+      `SELECT COUNT(DISTINCT hostel_id) AS n FROM events
+       WHERE city = @slug AND cancelled = 0 AND hostel_id IS NOT NULL
+         AND starts_at >= @from AND starts_at < @to`
+    )
+    .get<{ n: number }>({ slug, from: today, to })!.n;
+
+  const events = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM events
+       WHERE city = @slug AND cancelled = 0 AND starts_at >= @from AND starts_at < @to`
+    )
+    .get<{ n: number }>({ slug, from: today, to })!.n;
+
+  const week = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM events
+       WHERE city = @slug AND cancelled = 0 AND starts_at >= @from AND starts_at < @to`
+    )
+    .get<{ n: number }>({ slug, from: today, to: addDays(today, 7) })!.n;
+
+  const joins = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM joins j JOIN events e ON e.id = j.event_id
+       WHERE e.city = @slug AND e.cancelled = 0 AND e.starts_at >= @from AND e.starts_at < @to`
+    )
+    .get<{ n: number }>({ slug, from: today, to })!.n;
+
+  const next = db
+    .prepare(
+      `SELECT MIN(starts_at) AS starts_at FROM events
+       WHERE city = @slug AND cancelled = 0 AND starts_at >= @from`
+    )
+    .get<{ starts_at: string | null }>({ slug, from: today })!.starts_at;
+
+  const scans = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM arrivals a JOIN hostels h ON h.id = a.hostel_id
+       WHERE h.city = @slug AND a.day >= @since`
+    )
+    .get<{ n: number }>({ slug, since: addDays(today, -30) })!.n;
+
+  return {
+    hostels,
+    postingHostels: posting,
+    events,
+    eventsWeek: week,
+    joins,
+    scans,
+    nextEvent: next,
+  };
+}
+
+export type CityPipelineEntry = {
+  city: City;
+  supply: CitySupply;
+  gates: Gate[];
+  readiness: ReturnType<typeof launchReadiness>;
+};
+
+export function getCityPipeline(): CityPipelineEntry[] {
+  return getCities().map((city) => {
+    const supply = getCitySupply(city.slug);
+    const gates = launchGates(city, supply);
+    return { city, supply, gates, readiness: launchReadiness(gates) };
+  });
+}
+
+export type NewCityInput = {
+  slug: string;
+  name: string;
+  country: string;
+  tz: string;
+  emoji: string;
+  intro: string;
+  lat: number;
+  lng: number;
+  status: CityStatus;
+  launch_on: string | null;
+};
+
+export function createCity(input: NewCityInput): { ok: true } | { ok: false; error: string } {
+  const db = getDb();
+  if (db.prepare("SELECT 1 AS x FROM cities WHERE slug = ?").get(input.slug)) {
+    return { ok: false, error: `/${input.slug} already exists.` };
+  }
+
+  // A city record that fails its own first gate would be a dead end, so it is
+  // validated before it is written rather than after.
+  if (!recordComplete(input)) {
+    return { ok: false, error: "A city needs a name, country, timezone, centre and a one-line intro." };
+  }
+
+  db.prepare(
+    `INSERT INTO cities (slug, name, country, tz, emoji, intro, lat, lng, status, launch_on)
+     VALUES (@slug, @name, @country, @tz, @emoji, @intro, @lat, @lng, @status, @launch_on)`
+  ).run({
+    ...input,
+    emoji: input.emoji.trim() || "📍",
+    status: input.status === "live" ? "opening" : input.status,
+  });
+
+  return { ok: true };
+}
+
+export function setCityStatus(slug: string, status: CityStatus, launchOn?: string | null): void {
+  const db = getDb();
+  if (status === "live") {
+    db.prepare(
+      "UPDATE cities SET status = 'live', launch_on = COALESCE(?, launch_on, ?) WHERE slug = ?"
+    ).run(launchOn ?? null, todayISO(), slug);
+    return;
+  }
+  db.prepare("UPDATE cities SET status = ?, launch_on = COALESCE(?, launch_on) WHERE slug = ?").run(
+    status,
+    launchOn ?? null,
+    slug
+  );
+}
+
+/* ------------------------------------------------------------- arrivals */
+
+export function recordArrival(hostelId: number, visitor: string, day = todayISO()): void {
+  getDb()
+    .prepare("INSERT OR IGNORE INTO arrivals (hostel_id, visitor, day) VALUES (?, ?, ?)")
+    .run(hostelId, visitor, day);
+}
+
+/**
+ * Called when a traveller joins an event or books a bed. The visitor cookie is
+ * the only thing tying an anonymous reception QR scan to a signed-in account,
+ * so this must run before the session is created for the best attribution.
+ */
+export function attributeArrival(visitor: string | null, travellerId: number, kind: "join" | "booking"): void {
+  if (!visitor) return;
+  const column = kind === "join" ? "joined_at" : "booked_at";
+  getDb()
+    .prepare(
+      `UPDATE arrivals SET traveller_id = COALESCE(traveller_id, ?),
+         ${column} = COALESCE(${column}, datetime('now'))
+       WHERE visitor = ?`
+    )
+    .run(travellerId, visitor);
+}
+
+export type CityHostelRow = Hostel & { upcoming: number; joins: number; scans: number };
+
+/** The partner list on a city's console page: who is actually carrying the city. */
+export function getCityHostels(slug: string): CityHostelRow[] {
+  const db = getDb();
+  const today = todayISO();
+  return db
+    .prepare(
+      `SELECT h.*,
+        (SELECT COUNT(*) FROM events e WHERE e.hostel_id = h.id AND e.cancelled = 0
+           AND e.starts_at >= @from AND e.starts_at < @to) AS upcoming,
+        (SELECT COUNT(*) FROM joins j JOIN events e ON e.id = j.event_id
+           WHERE e.hostel_id = h.id) AS joins,
+        (SELECT COUNT(*) FROM arrivals a WHERE a.hostel_id = h.id AND a.day >= @since) AS scans
+       FROM hostels h WHERE h.city = @city ORDER BY upcoming DESC, h.name ASC`
+    )
+    .all<CityHostelRow>({ city: slug, from: today, to: addDays(today, 14), since: addDays(today, -30) });
+}
+
+export type PartnerStats = {
+  days: number;
+  opens: number;
+  people: number;
+  joins: number;
+  booked: number;
+  bookings: number;
+  revenue: number;
+  daily: { day: string; opens: number }[];
+};
+
+/**
+ * The hostel's own funnel: scans at reception → travellers who joined
+ * something → beds booked. This is the number a hostel signs for, so it is
+ * scoped to arrivals that started at that hostel's own link.
+ */
+export function getPartnerStats(hostelId: number, days = 30): PartnerStats {
+  const db = getDb();
+  const from = addDays(todayISO(), -days);
+
+  const totals = db
+    .prepare(
+      `SELECT COUNT(*) AS opens, COUNT(DISTINCT visitor) AS people,
+         COALESCE(SUM(CASE WHEN joined_at IS NOT NULL THEN 1 ELSE 0 END), 0) AS joins,
+         COALESCE(SUM(CASE WHEN booked_at IS NOT NULL THEN 1 ELSE 0 END), 0) AS booked
+       FROM arrivals WHERE hostel_id = ? AND day >= ?`
+    )
+    .get<{ opens: number; people: number; joins: number; booked: number }>(hostelId, from)!;
+
+  const value = db
+    .prepare(
+      `SELECT COUNT(*) AS n, COALESCE(SUM(total_cents), 0) AS total FROM bookings
+       WHERE hostel_id = @hostelId AND status != 'cancelled'
+         AND traveller_id IN (
+           SELECT traveller_id FROM arrivals
+           WHERE hostel_id = @hostelId AND day >= @from AND booked_at IS NOT NULL
+         )`
+    )
+    .get<{ n: number; total: number }>({ hostelId, from })!;
+
+  const daily = db
+    .prepare(
+      `SELECT day, COUNT(*) AS opens FROM arrivals
+       WHERE hostel_id = ? AND day >= ? GROUP BY day ORDER BY day ASC`
+    )
+    .all<{ day: string; opens: number }>(hostelId, addDays(todayISO(), -6));
+
+  return {
+    days,
+    opens: totals.opens,
+    people: totals.people,
+    joins: totals.joins,
+    booked: totals.booked,
+    bookings: value.n,
+    revenue: value.total,
+    daily,
+  };
 }
 
 /* ----------------------------------------------------------------- trips */
@@ -193,7 +451,7 @@ export function getWhoIsGoing(eventId: number): Traveller[] {
     .all<Traveller>(eventId);
 }
 
-export function toggleJoin(eventId: number, me: number) {
+export function toggleJoin(eventId: number, me: number, visitor: string | null = null) {
   const db = getDb();
   const exists = db
     .prepare("SELECT 1 AS x FROM joins WHERE event_id = ? AND traveller_id = ?")
@@ -203,6 +461,8 @@ export function toggleJoin(eventId: number, me: number) {
     db.prepare("DELETE FROM joins WHERE event_id = ? AND traveller_id = ?").run(eventId, me);
   } else {
     db.prepare("INSERT INTO joins (event_id, traveller_id) VALUES (?, ?)").run(eventId, me);
+    // Only joining counts as pull. Leaving an event is not a hostel's win.
+    attributeArrival(visitor, me, "join");
   }
 
   const going = (
@@ -526,7 +786,8 @@ function isRealDate(iso: string): boolean {
 
 export function createBooking(
   input: BookingInput,
-  me: number
+  me: number,
+  visitor: string | null = null
 ): { ok: true; code: string } | { ok: false; error: string } {
   const db = getDb();
   const room = db
@@ -577,6 +838,7 @@ export function createBooking(
         });
 
       openPayment(booking.lastInsertRowid, code, total);
+      attributeArrival(visitor, me, "booking");
 
       return { ok: true as const, code };
     })();

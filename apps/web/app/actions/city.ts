@@ -8,7 +8,8 @@ import { getCity } from "@/lib/queries";
 export async function selectCityAction(formData: FormData) {
   const slug = String(formData.get("city") ?? "");
   const next = String(formData.get("next") ?? "/");
-  if (!getCity(slug)) redirect(next.startsWith("/") ? next : "/");
+  const city = getCity(slug);
+  if (!city || city.status !== "live") redirect(next.startsWith("/") ? next : "/");
 
   const jar = await cookies();
   jar.set(CITY_COOKIE, slug, {

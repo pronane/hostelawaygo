@@ -46,12 +46,24 @@ export function Nav({ staff, admin }: { staff: boolean; admin: boolean }) {
             </span>
             Post tonight
           </Link>
+          <Link href="/hostel-admin/kit" data-active={isActive("/hostel-admin/kit", false)}>
+            <span className="nic" aria-hidden="true">
+              ▦
+            </span>
+            Partner kit
+          </Link>
         </>
       ) : null}
 
       {admin ? (
         <>
           <div className="nav-divider">Ops</div>
+          <Link href="/admin/cities" data-active={isActive("/admin/cities", false)}>
+            <span className="nic" aria-hidden="true">
+              ⊞
+            </span>
+            Cities
+          </Link>
           <Link href="/admin/ingest" data-active={isActive("/admin/ingest", false)}>
             <span className="nic" aria-hidden="true">
               ⤓

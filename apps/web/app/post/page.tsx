@@ -12,6 +12,8 @@ export default async function PostPage() {
   const user = await requireStaff("/post");
   const hostels = getHostels();
   const hostel = (user.hostel_id ? hostels.find((h) => h.id === user.hostel_id) : hostels[0])!;
+  // The audience promise is made per city, not per database.
+  const cityHostels = getHostels(hostel.city);
   const posts = getHostelPosts(hostel.id, 4, user.id);
   const audience = getTravellerCount();
 
@@ -21,13 +23,13 @@ export default async function PostPage() {
         <div className="eyebrow">Hostel mode · {hostel.name}</div>
         <h1 className="page-title">Post tonight</h1>
         <p className="page-sub">
-          Goes live to {plural(audience, "traveller")} across {plural(hostels.length, "hostel")} in
-          the city. It takes about a minute — and it fills your bar.
+          Goes live to {plural(audience, "traveller")} across {plural(cityHostels.length, "hostel")} in{" "}
+          {hostel.city}. It takes about a minute — and it fills your bar.
         </p>
       </header>
 
       <div style={{ marginTop: 18 }}>
-        <PostForm audience={audience} hostels={hostels.length} />
+        <PostForm audience={audience} hostels={cityHostels.length} />
       </div>
 
       <section style={{ marginTop: 34, maxWidth: 560 }}>

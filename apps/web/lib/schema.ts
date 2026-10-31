@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = "5";
+export const SCHEMA_VERSION = "6";
 
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS meta (
@@ -14,7 +14,10 @@ CREATE TABLE IF NOT EXISTS cities (
   emoji TEXT NOT NULL DEFAULT '📍',
   intro TEXT NOT NULL DEFAULT '',
   lat REAL NOT NULL DEFAULT 0,
-  lng REAL NOT NULL DEFAULT 0
+  lng REAL NOT NULL DEFAULT 0,
+  -- planned -> opening -> live. Public surfaces only show 'live'.
+  status TEXT NOT NULL DEFAULT 'live',
+  launch_on TEXT
 );
 
 CREATE TABLE IF NOT EXISTS hostels (
@@ -187,6 +190,22 @@ CREATE TABLE IF NOT EXISTS safe_nights (
 );
 CREATE INDEX IF NOT EXISTS idx_safe_nights_user ON safe_nights(traveller_id);
 
+-- Reception QR / partner links. One row per hostel + browser + day, stamped
+-- when that browser joins an event or books a bed, so a hostel can see what
+-- its own guests actually did in Away.
+CREATE TABLE IF NOT EXISTS arrivals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  hostel_id INTEGER NOT NULL REFERENCES hostels(id) ON DELETE CASCADE,
+  visitor TEXT NOT NULL,
+  day TEXT NOT NULL,
+  traveller_id INTEGER REFERENCES travellers(id) ON DELETE SET NULL,
+  joined_at TEXT,
+  booked_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (hostel_id, visitor, day)
+);
+CREATE INDEX IF NOT EXISTS idx_arrivals_hostel ON arrivals(hostel_id, day);
+
 CREATE TABLE IF NOT EXISTS ingest_runs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   source TEXT NOT NULL,
@@ -204,6 +223,7 @@ CREATE TABLE IF NOT EXISTS ingest_runs (
 
 /** Dropped in this order so foreign keys stay happy. */
 export const DROP_ALL = `
+DROP TABLE IF EXISTS arrivals;
 DROP TABLE IF EXISTS safe_nights;
 DROP TABLE IF EXISTS email_tokens;
 DROP TABLE IF EXISTS payments;

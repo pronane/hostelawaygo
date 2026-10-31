@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
+import { readVisitor } from "@/lib/arrivals";
 import { getCurrentUser } from "@/lib/auth";
 import { cancelBooking, createBooking, getBookingByCode, markBookingPaid } from "@/lib/queries";
 import { createStripeCheckout, getPaymentForBooking, openPayment, stripeConfigured } from "@/lib/payments";
@@ -30,7 +31,7 @@ export async function createBookingAction(formData: FormData) {
   if (!user) redirect(`/login?next=${encodeURIComponent(back)}`);
   if (!ISO_DATE.test(checkIn) || !ISO_DATE.test(checkOut)) redirect(`${back}&error=dates`);
 
-  const result = createBooking({ roomId, checkIn, checkOut, guests }, user.id);
+  const result = createBooking({ roomId, checkIn, checkOut, guests }, user.id, await readVisitor());
   if (!result.ok) redirect(`${back}&error=${encodeURIComponent(result.error)}`);
 
   revalidatePath("/trips");

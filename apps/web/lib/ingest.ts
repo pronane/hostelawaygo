@@ -137,7 +137,7 @@ function toIngested(raw: TmEvent): IngestedEvent | null {
 async function fetchLive(apiKey: string): Promise<TmEvent[]> {
   const events: TmEvent[] = [];
 
-  for (const city of getCities().slice(0, 3)) {
+  for (const city of getCities().filter((c) => c.status !== "planned").slice(0, 3)) {
     const url = new URL("https://app.ticketmaster.com/discovery/v2/events.json");
     url.searchParams.set("apikey", apiKey);
     url.searchParams.set("city", city.name);

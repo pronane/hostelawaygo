@@ -5,6 +5,7 @@ import {
   getBookingsForUser,
   getCity,
   getCityEvents,
+  getLiveCityOr,
   getJoinedCount,
   getTrips,
 } from "@/lib/queries";
@@ -14,8 +15,7 @@ import { plural } from "@/lib/format";
 export async function Aside({ user }: { user: SessionUser | null }) {
   const today = todayISO();
   const jar = await cookies();
-  const citySlug = jar.get(CITY_COOKIE)?.value ?? "lisbon";
-  const city = getCity(citySlug) ?? getCity("lisbon");
+  const city = getLiveCityOr(jar.get(CITY_COOKIE)?.value);
 
   const trips = getTrips(user?.id ?? null);
   const nextTrip = trips.find((t) => t.starts_on >= today) ?? trips[trips.length - 1];

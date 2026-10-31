@@ -8,6 +8,8 @@ export const CITIES = [
     tz: "Europe/Lisbon",
     emoji: "🌇",
     intro: "Seven hills, one long table, and a different party every night.",
+    status: "live",
+    launchInDays: -120,
   },
   {
     slug: "porto",
@@ -16,6 +18,8 @@ export const CITIES = [
     tz: "Europe/Lisbon",
     emoji: "🍷",
     intro: "Granite, port wine, and the best cheap dinner in Portugal.",
+    status: "live",
+    launchInDays: -45,
   },
   {
     slug: "krakow",
@@ -24,6 +28,18 @@ export const CITIES = [
     tz: "Europe/Warsaw",
     emoji: "🥟",
     intro: "Old town, cheap beer, and a hostel scene that never really sleeps.",
+    status: "opening",
+    launchInDays: 21,
+  },
+  {
+    slug: "budapest",
+    name: "Budapest",
+    country: "Hungary",
+    tz: "Europe/Budapest",
+    emoji: "🛁",
+    intro: "",
+    status: "planned",
+    launchInDays: null,
   },
 ] as const;
 
@@ -118,6 +134,31 @@ export const EXTRA_EVENTS: SeedEvent[] = [
     venue: "Kraków Główny station",
     tags: ["outdoors", "culture"],
     lens: ["To the station, then 20 min train", "Back around 16:00 — the whole day"],
+  },
+];
+
+export const EXTRA_PORTO_EVENTS: SeedEvent[] = [
+  {
+    key: "por-sangria", city: "porto", hostel: "The Passenger Hostel", dayOffset: 1, time: "19:00",
+    durationMin: 150, source: "hostel", category: "food", emoji: "🍹",
+    cover: ["#FFD9C2", "#F07B4F"], priceCents: 0, walkMinutes: 0, seated: 14,
+    title: "Sangria on the terrace, then whatever happens",
+    description:
+      "The hostel buys the first jug, the kitchen puts out bread and cheese, and whoever is standing there at seven decides where the night goes. Solo travellers: this is the cheapest possible way in.",
+    venue: "The Passenger Hostel",
+    tags: ["free", "solo", "food", "social", "early"],
+    lens: ["You're in this building", "Terrace is on the third floor — take the lift"],
+  },
+  {
+    key: "por-morro", city: "porto", dayOffset: 2, time: "20:00",
+    durationMin: 120, source: "city", category: "outdoors", emoji: "🌉",
+    cover: ["#FFD0B0", "#E0705A"], priceCents: 0, walkMinutes: 18, seated: 9,
+    title: "Sunset at Jardim do Morro, over the river",
+    description:
+      "The view everyone posts and nobody gets tired of. Walk the top deck of São Luís I, sit on the grass with a supermarket beer, watch the lights come on over the old town. Free, and better in company.",
+    venue: "Jardim do Morro, Vila Nova de Gaia",
+    tags: ["free", "solo", "outdoors", "early"],
+    lens: ["Free — bring a beer from the supermarket", "Back before 22:30 if you walk it"],
   },
 ];
 
