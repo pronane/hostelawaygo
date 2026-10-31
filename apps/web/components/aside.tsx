@@ -1,34 +1,54 @@
 import Link from "next/link";
-import { getCityEvents, getJoinedCount, getTrip } from "@/lib/queries";
+import { cookies } from "next/headers";
+import { CITY_COOKIE, type SessionUser } from "@/lib/auth";
+import {
+  getBookingsForUser,
+  getCity,
+  getCityEvents,
+  getJoinedCount,
+  getTrips,
+} from "@/lib/queries";
 import { addDays, diffDays, formatDay, formatShortDate, timeOf, todayISO } from "@/lib/time";
 import { plural } from "@/lib/format";
 
-export function Aside() {
+export async function Aside({ user }: { user: SessionUser | null }) {
   const today = todayISO();
-  const porto = getTrip("porto");
-  const tonight = getCityEvents("lisbon", today, addDays(today, 1)).slice(0, 3);
-  const joined = getJoinedCount();
-  const daysToPorto = porto ? diffDays(today, porto.starts_on) : 0;
+  const jar = await cookies();
+  const citySlug = jar.get(CITY_COOKIE)?.value ?? "lisbon";
+  const city = getCity(citySlug) ?? getCity("lisbon");
 
-  const stayDays = porto
-    ? Array.from({ length: diffDays(porto.starts_on, porto.ends_on) + 1 }, (_, i) =>
-        addDays(porto.starts_on, i)
+  const trips = getTrips(user?.id ?? null);
+  const nextTrip = trips.find((t) => t.starts_on >= today) ?? trips[trips.length - 1];
+  const tonight = city ? getCityEvents(city.slug, today, addDays(today, 1), user?.id ?? null).slice(0, 3) : [];
+  const bookings = getBookingsForUser(user?.id ?? null);
+  const joined = getJoinedCount(user?.id ?? null);
+
+  const stayDays = nextTrip
+    ? Array.from({ length: diffDays(nextTrip.starts_on, nextTrip.ends_on) + 1 }, (_, i) =>
+        addDays(nextTrip.starts_on, i)
       )
     : [];
 
   return (
     <>
-      {porto ? (
+      {nextTrip ? (
         <div className="tripcard">
-          <div className="lab">Next stop · in {daysToPorto} days</div>
-          <h3>Porto · {plural(diffDays(porto.starts_on, porto.ends_on), "night")}</h3>
+          <div className="lab">
+            {nextTrip.starts_on > today
+              ? `Next stop · in ${diffDays(today, nextTrip.starts_on)} days`
+              : "You're here"}
+          </div>
+          <h3>
+            {getCity(nextTrip.city)?.name ?? nextTrip.city} ·{" "}
+            {plural(diffDays(nextTrip.starts_on, nextTrip.ends_on), "night")}
+          </h3>
           <p>
-            {formatShortDate(porto.starts_on)} → {formatShortDate(porto.ends_on)} ·{" "}
-            {porto.hostel_name ?? "hostel to book"}
+            {formatShortDate(nextTrip.starts_on)} → {formatShortDate(nextTrip.ends_on)} ·{" "}
+            {nextTrip.hostel_name ?? "hostel to book"}
           </p>
           <div className="days">
-            {stayDays.map((d) => (
-              <div key={d} className={`d${d === porto.starts_on ? " hot" : ""}`}>
+            {stayDays.slice(0, 7).map((d) => (
+              <div key={d} className={`d${d === nextTrip.starts_on ? " hot" : ""}`}>
                 <b>{Number(d.slice(8, 10))}</b>
                 {formatDay(d).split(" ")[0]}
               </div>
@@ -38,10 +58,20 @@ export function Aside() {
             See what&apos;s on while you&apos;re there →
           </Link>
         </div>
-      ) : null}
+      ) : (
+        <div className="panel">
+          <div className="panel-head">Your trip</div>
+          <p style={{ fontSize: 12.5, color: "#5a4f47", margin: 0, lineHeight: 1.5 }}>
+            No trip saved yet. {user ? "Booking a bed creates one automatically." : "Sign in to see your own trip here."}
+          </p>
+          <Link href="/explore" className="btn small block" style={{ marginTop: 10 }}>
+            Find a hostel
+          </Link>
+        </div>
+      )}
 
       <div className="panel">
-        <div className="panel-head">Tonight in Lisbon</div>
+        <div className="panel-head">Tonight in {city?.name ?? "Lisbon"}</div>
         <div className="mini">
           {tonight.length ? (
             tonight.map((e) => (
@@ -57,7 +87,12 @@ export function Aside() {
             ))
           ) : (
             <p style={{ fontSize: 12, color: "#8b7d72", margin: 0 }}>
-              Nothing on tonight yet. Post something and watch it fill.
+              Nothing on tonight yet.{" "}
+              {user?.role === "hostel_staff" ? (
+                <Link href="/post" style={{ textDecoration: "underline" }}>
+                  Post something
+                </Link>
+              ) : null}
             </p>
           )}
         </div>
@@ -66,18 +101,12 @@ export function Aside() {
       <div className="panel">
         <div className="panel-head">You</div>
         <p style={{ fontSize: 12.5, lineHeight: 1.6, margin: 0, color: "#4a403a" }}>
-          <b>{plural(joined, "event")}</b> saved on this trip.
+          <b>{plural(joined, "event")}</b> joined · <b>{plural(bookings.length, "booking")}</b>
           <br />
-          <Link href="/post" style={{ color: "#ff5a36", fontWeight: 700 }}>
-            Posting as hostel staff?
+          <Link href="/trips" style={{ color: "#ff5a36", fontWeight: 700 }}>
+            {bookings.length ? "View your bookings" : "Book a bed"}
           </Link>
         </p>
-      </div>
-
-      <div className="rail-note" style={{ marginTop: 2 }}>
-        <b>Working vertical slice.</b> Real SQLite database, seeded Lisbon and Porto data,
-        live join counts. No booking, no payments, no chat — on purpose.{" "}
-        <code style={{ fontSize: 10.5 }}>npm run db:reset</code> re-dates the seed to today.
       </div>
     </>
   );

@@ -23,6 +23,10 @@ export function JoinButton({ eventId, going, joined, free }: Props) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ eventId }),
       });
+      if (res.status === 401) {
+        window.location.href = `/login?next=${encodeURIComponent(window.location.pathname)}`;
+        return;
+      }
       if (!res.ok) throw new Error(await res.text());
       const data = (await res.json()) as { joined: boolean; going: number };
       setState({ joined: data.joined, going: data.going });

@@ -1,8 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { Nav, MobileTabs } from "@/components/nav";
+import Link from "next/link";
+import { MobileTabs, Nav } from "@/components/nav";
+import { AccountBlock } from "@/components/account-block";
 import { Aside } from "@/components/aside";
 import { SwRegister } from "@/components/sw-register";
+import { getCurrentUser, isStaff } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -36,32 +39,38 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const user = await getCurrentUser();
+  const staff = isStaff(user);
+
   return (
     <html lang="en">
       <body>
         <div className="shell">
           <aside className="rail">
-            <div className="brand">
-              <div className="brand-mark" aria-hidden="true">
+            <Link href="/" className="brand">
+              <span className="brand-mark" aria-hidden="true">
                 ◉
-              </div>
-              <div>
-                <div className="brand-name">Away</div>
-                <div className="brand-sub">Hostel guide</div>
-              </div>
-            </div>
-            <Nav />
+              </span>
+              <span>
+                <span className="brand-name">Away</span>
+                <span className="brand-sub">Hostel guide</span>
+              </span>
+            </Link>
+
+            <Nav staff={staff} admin={user?.role === "admin"} />
+            <AccountBlock user={user} />
+
             <p className="rail-note">
               <b>HERE</b> is the city you&apos;re in. <b>NEXT</b> is the city you&apos;re going
-              to, matched to your exact dates. Built for people sleeping in hostels.
+              to, matched to your exact dates.
             </p>
           </aside>
 
           <main>{children}</main>
 
           <aside className="aside">
-            <Aside />
+            <Aside user={user} />
           </aside>
         </div>
 

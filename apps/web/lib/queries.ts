@@ -1,10 +1,24 @@
+import { randomBytes } from "node:crypto";
 import { getDb } from "./db";
-import { DEMO_USER_ID, type CitySlug, type Source, type WindowStatus } from "./constants";
-import { addDays, dateOf, todayISO } from "./time";
-import type { FeedEvent, EventRow, Hostel, Traveller, Trip } from "./types";
+import type { Source, WindowStatus } from "./constants";
+import { addDays, dateOf, diffDays, todayISO } from "./time";
+import type {
+  Booking,
+  BookingDetail,
+  City,
+  EventRow,
+  FeedEvent,
+  Hostel,
+  IngestRun,
+  Message,
+  Payment,
+  Room,
+  Traveller,
+  Trip,
+} from "./types";
 
 const EVENT_SELECT = `
-  SELECT e.*, h.name AS hostel_name, h.area AS hostel_area,
+  SELECT e.*, h.name AS hostel_name, h.area AS hostel_area, h.slug AS hostel_slug,
     (SELECT COUNT(*) FROM joins j WHERE j.event_id = e.id) AS going,
     (SELECT COUNT(*) FROM joins j JOIN travellers t ON t.id = j.traveller_id
        WHERE j.event_id = e.id AND t.solo = 1) AS solo_going,
@@ -24,36 +38,86 @@ function toFeedEvent(row: EventRow): FeedEvent {
     lens: JSON.parse(row.lens || "[]") as string[],
     going: row.going,
     soloGoing: row.solo_going,
-    avatars: row.avatars ? row.avatars.split(",") : [],
     isJoined: row.is_joined > 0,
+    avatars: row.avatars ? row.avatars.split(",") : [],
     source: row.source as Source,
   };
 }
 
-export function getTrip(city: CitySlug, me = DEMO_USER_ID): Trip | null {
+/* ---------------------------------------------------------------- cities */
+
+export function getCities(): (City & { events: number; hostels: number })[] {
+  const today = todayISO();
+  return getDb()
+    .prepare(
+      `SELECT c.*,
+        (SELECT COUNT(*) FROM events e WHERE e.city = c.slug AND e.cancelled = 0
+           AND e.starts_at >= @from AND e.starts_at < @to) AS events,
+        (SELECT COUNT(*) FROM hostels h WHERE h.city = c.slug) AS hostels
+       FROM cities c ORDER BY c.name`
+    )
+    .all({ from: today, to: `${addDays(today, 7)}T23:59` });
+}
+
+export function getCity(slug: string): City | undefined {
+  return getDb().prepare("SELECT * FROM cities WHERE slug = ?").get<City>(slug);
+}
+
+/* ----------------------------------------------------------------- trips */
+
+export function getTrip(city: string, me: number | null): Trip | null {
+  if (!me) return null;
   const row = getDb()
     .prepare(
       `SELECT t.*, h.name AS hostel_name
        FROM trips t LEFT JOIN hostels h ON h.id = t.hostel_id
        WHERE t.traveller_id = ? AND t.city = ? LIMIT 1`
     )
-    .get(me, city) as Trip | undefined;
+    .get<Trip>(me, city);
   return row ?? null;
 }
 
-/** Events happening in a city between two local dates (inclusive of `from`, exclusive of `to`). */
-export function getCityEvents(city: CitySlug, from: string, to: string, me = DEMO_USER_ID): FeedEvent[] {
+export function getTrips(me: number | null): Trip[] {
+  if (!me) return [];
+  return getDb()
+    .prepare(
+      `SELECT t.*, h.name AS hostel_name, c.name AS city_name
+       FROM trips t
+       LEFT JOIN hostels h ON h.id = t.hostel_id
+       LEFT JOIN cities c ON c.slug = t.city
+       WHERE t.traveller_id = ? ORDER BY t.starts_on ASC`
+    )
+    .all<Trip>(me);
+}
+
+/* ---------------------------------------------------------------- events */
+
+export function getCityEvents(
+  city: string,
+  from: string,
+  to: string,
+  me: number | null
+): FeedEvent[] {
   const rows = getDb()
-    .prepare(`${EVENT_SELECT} WHERE e.city = @city AND e.starts_at >= @from AND e.starts_at < @to
-              ORDER BY e.starts_at ASC`)
-    .all({ city, from, to: to.length === 10 ? `${to}T23:59` : to, me }) as EventRow[];
+    .prepare(
+      `${EVENT_SELECT}
+       WHERE e.city = @city AND e.cancelled = 0
+         AND e.starts_at >= @from AND e.starts_at < @to
+       ORDER BY e.starts_at ASC`
+    )
+    .all<EventRow>({
+      city,
+      from,
+      to: to.length === 10 ? `${to}T23:59` : to,
+      me,
+    });
   return rows.map(toFeedEvent);
 }
 
-export function getEvent(id: number, me = DEMO_USER_ID): FeedEvent | null {
-  const row = getDb().prepare(`${EVENT_SELECT} WHERE e.id = @id`).get({ id, me }) as
-    | EventRow
-    | undefined;
+export function getEvent(id: number, me: number | null): FeedEvent | null {
+  const row = getDb()
+    .prepare(`${EVENT_SELECT} WHERE e.id = @id`)
+    .get<EventRow>({ id, me });
   return row ? toFeedEvent(row) : null;
 }
 
@@ -63,55 +127,34 @@ export function getWhoIsGoing(eventId: number): Traveller[] {
       `SELECT t.*, j.created_at FROM joins j JOIN travellers t ON t.id = j.traveller_id
        WHERE j.event_id = ? ORDER BY j.created_at DESC, t.name ASC`
     )
-    .all(eventId) as Traveller[];
+    .all<Traveller>(eventId);
 }
 
-export function toggleJoin(eventId: number, me = DEMO_USER_ID) {
+export function toggleJoin(eventId: number, me: number) {
   const db = getDb();
   const exists = db
-    .prepare("SELECT 1 FROM joins WHERE event_id = ? AND traveller_id = ?")
+    .prepare("SELECT 1 AS x FROM joins WHERE event_id = ? AND traveller_id = ?")
     .get(eventId, me);
+
   if (exists) {
     db.prepare("DELETE FROM joins WHERE event_id = ? AND traveller_id = ?").run(eventId, me);
   } else {
     db.prepare("INSERT INTO joins (event_id, traveller_id) VALUES (?, ?)").run(eventId, me);
   }
+
   const going = (
-    db.prepare("SELECT COUNT(*) AS n FROM joins WHERE event_id = ?").get(eventId) as { n: number }
-  ).n;
-  return { joined: !exists, going };
-}
-
-export function getHostels(city?: CitySlug): Hostel[] {
-  const db = getDb();
-  return city
-    ? (db.prepare("SELECT * FROM hostels WHERE city = ? ORDER BY name").all(city) as Hostel[])
-    : (db.prepare("SELECT * FROM hostels ORDER BY city, name").all() as Hostel[]);
-}
-
-export function getTraveller(id: number): Traveller | null {
-  const row = getDb().prepare("SELECT * FROM travellers WHERE id = ?").get(id) as
-    | Traveller
-    | undefined;
-  return row ?? null;
-}
-
-export function getTravellerCount(): number {
-  return (getDb().prepare("SELECT COUNT(*) AS n FROM travellers").get() as { n: number }).n;
-}
-
-export function getJoinedCount(me = DEMO_USER_ID): number {
-  return (
-    getDb().prepare("SELECT COUNT(*) AS n FROM joins WHERE traveller_id = ?").get(me) as {
+    db.prepare("SELECT COUNT(*) AS n FROM joins WHERE event_id = ?").get<{ n: number }>(eventId) as {
       n: number;
     }
   ).n;
+
+  return { joined: !exists, going };
 }
 
-export function getHostelPosts(hostelId: number, limit = 4): FeedEvent[] {
+export function getHostelPosts(hostelId: number, limit: number, me: number | null): FeedEvent[] {
   const rows = getDb()
     .prepare(`${EVENT_SELECT} WHERE e.hostel_id = @hostelId ORDER BY e.starts_at DESC LIMIT @limit`)
-    .all({ hostelId, limit, me: DEMO_USER_ID }) as EventRow[];
+    .all<EventRow>({ hostelId, limit, me });
   return rows.map(toFeedEvent);
 }
 
@@ -133,23 +176,40 @@ const CATEGORY_STYLE: Record<string, { emoji: string; cover: [string, string] }>
   nightlife: { emoji: "🪩", cover: ["#C9C2FF", "#6C5CE7"] },
 };
 
-export function createHostelEvent(input: NewEventInput): number {
+export function createHostelEvent(
+  input: NewEventInput,
+  hostelId: number,
+  me: number | null
+): number {
   const db = getDb();
-  const hostel = getHostels("lisbon").find((h) => h.name === "Home Lisbon Hostel");
+  const hostel = db
+    .prepare("SELECT id, name FROM hostels WHERE id = ?")
+    .get<{ id: number; name: string }>(hostelId);
+  if (!hostel) throw new Error("Unknown hostel");
+
   const style = CATEGORY_STYLE[input.category] ?? CATEGORY_STYLE.social;
   const today = todayISO();
   const time = /^\d{2}:\d{2}$/.test(input.startsAt) ? input.startsAt : "20:00";
-  const startsAt = new Date(`${today}T${time}:00Z`) < new Date() ? `${addDays(today, 1)}T${time}` : `${today}T${time}`;
+
+  // If the time has already gone, schedule it for tomorrow rather than in the past.
+  const todayStart = new Date();
+  const [hh, mm] = time.split(":").map(Number);
+  const scheduled = new Date(todayStart);
+  scheduled.setHours(hh, mm, 0, 0);
+  const startsAt =
+    scheduled.getTime() < todayStart.getTime() ? `${addDays(today, 1)}T${time}` : `${today}T${time}`;
 
   const info = db
     .prepare(
       `INSERT INTO events (city, hostel_id, title, description, starts_at, duration_min, price_cents,
-        source, category, emoji, cover_from, cover_to, venue, walk_minutes, tags, lens, created_by)
-       VALUES ('lisbon', @hostel_id, @title, @description, @starts_at, @duration_min, @price_cents,
-        'hostel', @category, @emoji, @cover_from, @cover_to, @venue, 0, @tags, '[]', 'hostel-staff')`
+        source, category, emoji, cover_from, cover_to, venue, walk_minutes, tags, lens, created_by,
+        origin, created_at)
+       VALUES ((SELECT city FROM hostels WHERE id = @hostel_id), @hostel_id, @title, @description,
+        @starts_at, @duration_min, @price_cents, 'hostel', @category, @emoji, @cover_from, @cover_to,
+        @venue, 0, @tags, '[]', @created_by, 'hostel', datetime('now'))`
     )
     .run({
-      hostel_id: hostel?.id ?? null,
+      hostel_id: hostel.id,
       title: input.title.slice(0, 120),
       description:
         input.description?.slice(0, 600) ||
@@ -161,12 +221,447 @@ export function createHostelEvent(input: NewEventInput): number {
       emoji: style.emoji,
       cover_from: style.cover[0],
       cover_to: style.cover[1],
-      venue: `${hostel?.name ?? "Home Lisbon Hostel"} · your hostel`,
+      venue: `${hostel.name} · your hostel`,
       tags: JSON.stringify(input.priceCents === 0 ? ["solo", "social", "free"] : ["solo", "social"]),
+      created_by: me ? `staff:${me}` : "hostel-staff",
     });
 
-  return Number(info.lastInsertRowid);
+  return info.lastInsertRowid;
 }
+
+export function cancelEvent(eventId: number): void {
+  getDb().prepare("UPDATE events SET cancelled = 1 WHERE id = ?").run(eventId);
+}
+
+export function getStaffEvents(hostelId: number, me: number | null): FeedEvent[] {
+  const rows = getDb()
+    .prepare(
+      `${EVENT_SELECT} WHERE e.hostel_id = @hostelId ORDER BY e.starts_at DESC LIMIT 30`
+    )
+    .all<EventRow>({ hostelId, me });
+  return rows.map(toFeedEvent);
+}
+
+export function getStaffStats(hostelId: number) {
+  const db = getDb();
+  const today = todayISO();
+
+  const upcoming = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM events
+       WHERE hostel_id = @hostelId AND cancelled = 0 AND starts_at >= @today`
+    )
+    .get<{ n: number }>({ hostelId, today })!.n;
+
+  const joins = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM joins j JOIN events e ON e.id = j.event_id
+       WHERE e.hostel_id = @hostelId AND e.starts_at >= @today`
+    )
+    .get<{ n: number }>({ hostelId, today })!.n;
+
+  const bookings = db
+    .prepare(
+      `SELECT COUNT(*) AS n, COALESCE(SUM(total_cents), 0) AS revenue FROM bookings
+       WHERE hostel_id = @hostelId AND status != 'cancelled'`
+    )
+    .get<{ n: number; revenue: number }>({ hostelId })!;
+
+  const messages = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM messages m JOIN events e ON e.id = m.event_id
+       WHERE e.hostel_id = @hostelId AND m.reported = 1 AND m.hidden = 0`
+    )
+    .get<{ n: number }>({ hostelId })!.n;
+
+  return { upcoming, joins, bookings: bookings.n, revenue: bookings.revenue, reported: messages };
+}
+
+/* -------------------------------------------------------------- hostels */
+
+export function getHostels(city?: string): Hostel[] {
+  const db = getDb();
+  return city
+    ? db.prepare("SELECT * FROM hostels WHERE city = ? ORDER BY rating DESC").all<Hostel>(city)
+    : db.prepare("SELECT * FROM hostels ORDER BY city, rating DESC").all<Hostel>();
+}
+
+export function getHostelBySlug(slug: string): Hostel | undefined {
+  return getDb().prepare("SELECT * FROM hostels WHERE slug = ?").get<Hostel>(slug);
+}
+
+export function getRooms(hostelId: number): Room[] {
+  return getDb()
+    .prepare("SELECT * FROM rooms WHERE hostel_id = ? ORDER BY price_cents ASC")
+    .all<Room>(hostelId);
+}
+
+/* ------------------------------------------------------------- travellers */
+
+export function getTraveller(id: number): Traveller | null {
+  return getDb().prepare("SELECT * FROM travellers WHERE id = ?").get<Traveller>(id) ?? null;
+}
+
+export function getTravellerCount(): number {
+  return getDb().prepare("SELECT COUNT(*) AS n FROM travellers").get<{ n: number }>()!.n;
+}
+
+export function getJoinedCount(me: number | null): number {
+  if (!me) return 0;
+  return (
+    getDb()
+      .prepare("SELECT COUNT(*) AS n FROM joins WHERE traveller_id = ?")
+      .get<{ n: number }>(me)!.n
+  );
+}
+
+/* ---------------------------------------------------------------- chat */
+
+export function getMessages(eventId: number, me: number | null): Message[] {
+  return getDb()
+    .prepare(
+      `SELECT m.*, t.name, t.initials, t.colour, t.flag,
+              CASE WHEN m.traveller_id = @me THEN 1 ELSE 0 END AS mine
+       FROM messages m JOIN travellers t ON t.id = m.traveller_id
+       WHERE m.event_id = @eventId AND m.hidden = 0
+       ORDER BY m.created_at ASC, m.id ASC LIMIT 100`
+    )
+    .all<Message>({ eventId, me });
+}
+
+export function recentMessageCount(me: number, minutes = 5): number {
+  return (
+    getDb()
+      .prepare(
+        "SELECT COUNT(*) AS n FROM messages WHERE traveller_id = ? AND created_at > datetime('now', ?)"
+      )
+      .get<{ n: number }>(me, `-${minutes} minutes`)!.n
+  );
+}
+
+export function addMessage(eventId: number, me: number, body: string): number {
+  const info = getDb()
+    .prepare("INSERT INTO messages (event_id, traveller_id, body) VALUES (?, ?, ?)")
+    .run(eventId, me, body.slice(0, 500));
+  return info.lastInsertRowid;
+}
+
+export function reportMessage(messageId: number): void {
+  getDb().prepare("UPDATE messages SET reported = 1 WHERE id = ?").run(messageId);
+}
+
+export function clearReport(messageId: number): void {
+  getDb().prepare("UPDATE messages SET reported = 0 WHERE id = ?").run(messageId);
+}
+
+export function hideMessage(messageId: number): void {
+  getDb().prepare("UPDATE messages SET hidden = 1 WHERE id = ?").run(messageId);
+}
+
+export function getReportedMessages(
+  hostelId: number
+): (Message & { event_title: string })[] {
+  return getDb()
+    .prepare(
+      `SELECT m.*, t.name, t.initials, t.colour, t.flag,
+              0 AS mine,
+              e.title AS event_title
+       FROM messages m
+       JOIN travellers t ON t.id = m.traveller_id
+       JOIN events e ON e.id = m.event_id
+       WHERE e.hostel_id = @hostelId AND m.reported = 1 AND m.hidden = 0
+       ORDER BY m.created_at DESC LIMIT 20`
+    )
+    .all<Message & { event_title: string }>({ hostelId });
+}
+
+/* ------------------------------------------------------------- bookings */
+
+export function bedsTaken(roomId: number, checkIn: string, checkOut: string): number {
+  const db = getDb();
+  const nights = Math.max(0, diffDays(checkIn, checkOut));
+  let peak = 0;
+  for (let i = 0; i < nights; i += 1) {
+    const night = addDays(checkIn, i);
+    const row = db
+      .prepare(
+        `SELECT COALESCE(SUM(guests), 0) AS n FROM bookings
+         WHERE room_id = @roomId AND status != 'cancelled'
+           AND check_in <= @night AND check_out > @night`
+      )
+      .get<{ n: number }>({ roomId, night })!;
+    peak = Math.max(peak, row.n);
+  }
+  return peak;
+}
+
+export function roomsWithAvailability(hostelId: number, checkIn: string, checkOut: string) {
+  return getRooms(hostelId).map((room) => {
+    const taken = bedsTaken(room.id, checkIn, checkOut);
+    return { ...room, taken, free: Math.max(0, room.beds - taken) };
+  });
+}
+
+const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+function bookingCode(): string {
+  const bytes = randomBytes(6);
+  let out = "";
+  for (const b of bytes) out += CODE_ALPHABET[b % CODE_ALPHABET.length];
+  return `AWY-${out}`;
+}
+
+export type BookingInput = {
+  roomId: number;
+  checkIn: string;
+  checkOut: string;
+  guests: number;
+};
+
+export function createBooking(
+  input: BookingInput,
+  me: number
+): { ok: true; code: string } | { ok: false; error: string } {
+  const db = getDb();
+  const room = db
+    .prepare("SELECT r.*, h.id AS hostel_id FROM rooms r JOIN hostels h ON h.id = r.hostel_id WHERE r.id = ?")
+    .get<Room>(input.roomId);
+  if (!room) return { ok: false, error: "That room no longer exists." };
+
+  const nights = diffDays(input.checkIn, input.checkOut);
+  if (!Number.isInteger(nights) || nights < 1) return { ok: false, error: "Check-out must be after check-in." };
+  if (nights > 14) return { ok: false, error: "We only take bookings up to 14 nights." };
+  if (input.guests < 1 || input.guests > room.beds) {
+    return { ok: false, error: `That room takes between 1 and ${room.beds} guests.` };
+  }
+
+  try {
+    return db.transaction(() => {
+      const taken = bedsTaken(room.id, input.checkIn, input.checkOut);
+      if (taken + input.guests > room.beds) {
+        return { ok: false as const, error: "Someone just took the last bed. Try different dates." };
+      }
+
+      const total = room.price_cents * nights * input.guests;
+      const code = bookingCode();
+
+      const booking = db
+        .prepare(
+          `INSERT INTO bookings (code, traveller_id, hostel_id, room_id, check_in, check_out,
+             guests, nights, total_cents, status, created_at)
+           VALUES (@code, @me, @hostelId, @roomId, @checkIn, @checkOut, @guests, @nights, @total,
+             'pending', datetime('now'))`
+        )
+        .run({
+          code,
+          me,
+          hostelId: room.hostel_id,
+          roomId: room.id,
+          checkIn: input.checkIn,
+          checkOut: input.checkOut,
+          guests: input.guests,
+          nights,
+          total,
+        });
+
+      db.prepare(
+        `INSERT INTO payments (booking_id, provider, reference, amount_cents, status, created_at)
+         VALUES (@bookingId, 'sandbox', @reference, @total, 'requires_payment', datetime('now'))`
+      ).run({
+        bookingId: booking.lastInsertRowid,
+        reference: `pay_${booking.lastInsertRowid}_${randomBytes(4).toString("hex")}`,
+        total,
+      });
+
+      return { ok: true as const, code };
+    })();
+  } catch {
+    return { ok: false, error: "Something went wrong holding that bed. Try again." };
+  }
+}
+
+const BOOKING_SELECT = `
+  SELECT b.*, h.name AS hostel_name, h.slug AS hostel_slug, h.city AS hostel_city,
+    r.name AS room_name, r.kind AS room_kind,
+    p.status AS payment_status, p.reference AS payment_reference, p.paid_at
+  FROM bookings b
+  JOIN hostels h ON h.id = b.hostel_id
+  JOIN rooms r ON r.id = b.room_id
+  LEFT JOIN payments p ON p.booking_id = b.id
+`;
+
+export function getBookingByCode(code: string): BookingDetail | undefined {
+  return getDb().prepare(`${BOOKING_SELECT} WHERE b.code = @code`).get<BookingDetail>({ code });
+}
+
+export function getBookingsForUser(me: number | null): BookingDetail[] {
+  if (!me) return [];
+  return getDb()
+    .prepare(`${BOOKING_SELECT} WHERE b.traveller_id = @me ORDER BY b.check_in DESC`)
+    .all<BookingDetail>({ me });
+}
+
+export function getBookingsForHostel(hostelId: number): (BookingDetail & { guest_name: string })[] {
+  return getDb()
+    .prepare(
+      `${BOOKING_SELECT.replace(
+        "SELECT b.*,",
+        "SELECT b.*, t.name AS guest_name,"
+      )} JOIN travellers t ON t.id = b.traveller_id
+       WHERE b.hostel_id = @hostelId ORDER BY b.check_in DESC`
+    )
+    .all<BookingDetail & { guest_name: string }>({ hostelId });
+}
+
+export function markBookingPaid(code: string, me: number): Payment["status"] | null {
+  const db = getDb();
+  const booking = db
+    .prepare("SELECT id, traveller_id FROM bookings WHERE code = ?")
+    .get<{ id: number; traveller_id: number }>(code);
+  if (!booking || booking.traveller_id !== me) return null;
+
+  return db.transaction(() => {
+    db.prepare(
+      "UPDATE payments SET status = 'paid', paid_at = datetime('now') WHERE booking_id = ?"
+    ).run(booking.id);
+    db.prepare("UPDATE bookings SET status = 'confirmed' WHERE id = ?").run(booking.id);
+    return "paid" as const;
+  })();
+}
+
+export function cancelBooking(code: string, me: number): boolean {
+  const db = getDb();
+  const booking = db
+    .prepare("SELECT id, traveller_id, status FROM bookings WHERE code = ?")
+    .get<{ id: number; traveller_id: number; status: string }>(code);
+  if (!booking || booking.traveller_id !== me || booking.status === "cancelled") return false;
+
+  db.transaction(() => {
+    db.prepare("UPDATE bookings SET status = 'cancelled' WHERE id = ?").run(booking.id);
+    db.prepare(
+      "UPDATE payments SET status = 'refunded' WHERE booking_id = ? AND status = 'paid'"
+    ).run(booking.id);
+  })();
+
+  return true;
+}
+
+/* --------------------------------------------------------------- ingest */
+
+export function startIngestRun(source: string, mode: string): number {
+  const info = getDb()
+    .prepare(
+      "INSERT INTO ingest_runs (source, mode, started_at, status) VALUES (?, ?, datetime('now'), 'running')"
+    )
+    .run(source, mode);
+  return info.lastInsertRowid;
+}
+
+export function finishIngestRun(
+  id: number,
+  counts: { fetched: number; inserted: number; updated: number; skipped: number },
+  status: string,
+  note = ""
+): void {
+  getDb()
+    .prepare(
+      `UPDATE ingest_runs SET finished_at = datetime('now'), fetched = @fetched,
+        inserted = @inserted, updated = @updated, skipped = @skipped, status = @status, note = @note
+       WHERE id = @id`
+    )
+    .run({ id, ...counts, status, note });
+}
+
+export type IngestedEvent = {
+  city: string;
+  externalId: string;
+  title: string;
+  description: string;
+  startsAt: string;
+  durationMin: number;
+  priceCents: number;
+  venue: string;
+  category: string;
+  emoji: string;
+  cover: [string, string];
+  walkMinutes: number;
+  tags: string[];
+  lens: string[];
+};
+
+export function upsertIngestedEvent(event: IngestedEvent): "inserted" | "updated" | "skipped" {
+  const db = getDb();
+  const existing = db
+    .prepare("SELECT id FROM events WHERE city = ? AND external_id = ?")
+    .get<{ id: number }>(event.city, event.externalId);
+
+  if (existing) {
+    db.prepare(
+      `UPDATE events SET title = @title, description = @description, starts_at = @startsAt,
+        duration_min = @durationMin, price_cents = @priceCents, venue = @venue,
+        category = @category, emoji = @emoji, cover_from = @coverFrom, cover_to = @coverTo
+       WHERE id = @id`
+    ).run({
+      id: existing.id,
+      title: event.title,
+      description: event.description,
+      startsAt: event.startsAt,
+      durationMin: event.durationMin,
+      priceCents: event.priceCents,
+      venue: event.venue,
+      category: event.category,
+      emoji: event.emoji,
+      coverFrom: event.cover[0],
+      coverTo: event.cover[1],
+    });
+    return "updated";
+  }
+
+  db.prepare(
+    `INSERT INTO events (city, hostel_id, title, description, starts_at, duration_min, price_cents,
+      source, category, emoji, cover_from, cover_to, venue, walk_minutes, tags, lens, created_by,
+      external_id, origin, created_at)
+     VALUES (@city, NULL, @title, @description, @startsAt, @durationMin, @priceCents, 'ticketed',
+      @category, @emoji, @coverFrom, @coverTo, @venue, @walkMinutes, @tags, @lens, 'ingest',
+      @externalId, 'ingest', datetime('now'))`
+  ).run({
+    city: event.city,
+    title: event.title,
+    description: event.description,
+    startsAt: event.startsAt,
+    durationMin: event.durationMin,
+    priceCents: event.priceCents,
+    category: event.category,
+    emoji: event.emoji,
+    coverFrom: event.cover[0],
+    coverTo: event.cover[1],
+    venue: event.venue,
+    walkMinutes: event.walkMinutes,
+    tags: JSON.stringify(event.tags),
+    lens: JSON.stringify(event.lens),
+    externalId: event.externalId,
+  });
+
+  return "inserted";
+}
+
+export function getIngestRuns(limit = 8): IngestRun[] {
+  return getDb()
+    .prepare("SELECT * FROM ingest_runs ORDER BY id DESC LIMIT ?")
+    .all<IngestRun>(limit);
+}
+
+export function getIngestTotals() {
+  const row = getDb()
+    .prepare(
+      `SELECT COUNT(*) AS events, MAX(created_at) AS newest
+       FROM events WHERE origin = 'ingest'`
+    )
+    .get<{ events: number; newest: string | null }>()!;
+  return row;
+}
+
+/* ------------------------------------------------------------- helpers */
 
 export function withWindowStatus<T extends FeedEvent>(
   events: T[],
@@ -183,14 +678,15 @@ export function withWindowStatus<T extends FeedEvent>(
   }));
 }
 
-/** Events grouped into calendar days for the feed. */
 export function groupByDay(events: FeedEvent[]): { date: string; events: FeedEvent[] }[] {
   const groups = new Map<string, FeedEvent[]>();
-  for (const e of events) {
-    const d = dateOf(e.starts_at);
-    const arr = groups.get(d) ?? [];
-    arr.push(e);
-    groups.set(d, arr);
+  for (const event of events) {
+    const day = dateOf(event.starts_at);
+    const bucket = groups.get(day) ?? [];
+    bucket.push(event);
+    groups.set(day, bucket);
   }
-  return [...groups.entries()].map(([date, evs]) => ({ date, events: evs }));
+  return [...groups.entries()].map(([date, list]) => ({ date, events: list }));
 }
+
+export type { Booking };

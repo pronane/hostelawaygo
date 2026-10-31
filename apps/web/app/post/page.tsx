@@ -1,26 +1,28 @@
+import Link from "next/link";
 import { EventCard } from "@/components/event-card";
 import { PostForm } from "@/components/post-form";
-import { HOME_HOSTEL_NAME } from "@/lib/constants";
+import { requireStaff } from "@/lib/auth";
 import { getHostelPosts, getHostels, getTravellerCount } from "@/lib/queries";
 import { plural } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Post tonight" };
 
-export default function PostPage() {
-  const hostels = getHostels("lisbon");
-  const home = hostels.find((h) => h.name === HOME_HOSTEL_NAME);
-  const posts = home ? getHostelPosts(home.id, 4) : [];
+export default async function PostPage() {
+  const user = await requireStaff("/post");
+  const hostels = getHostels();
+  const hostel = (user.hostel_id ? hostels.find((h) => h.id === user.hostel_id) : hostels[0])!;
+  const posts = getHostelPosts(hostel.id, 4, user.id);
   const audience = getTravellerCount();
 
   return (
     <>
       <header className="page-head">
-        <div className="eyebrow">Hostel mode · {HOME_HOSTEL_NAME}</div>
+        <div className="eyebrow">Hostel mode · {hostel.name}</div>
         <h1 className="page-title">Post tonight</h1>
         <p className="page-sub">
-          Goes live to {plural(audience, "traveller")} across {plural(hostels.length, "hostel")}{" "}
-          in the city. It takes about a minute — and it fills your bar.
+          Goes live to {plural(audience, "traveller")} across {plural(hostels.length, "hostel")} in
+          the city. It takes about a minute — and it fills your bar.
         </p>
       </header>
 
@@ -38,9 +40,11 @@ export default function PostPage() {
           posts.map((e) => <EventCard key={e.id} event={e} />)
         )}
         <p style={{ fontSize: 11.5, color: "#8b7d72", marginTop: 16, lineHeight: 1.6 }}>
-          This is the supply side of the product: staff post in under a minute, the event
-          appears immediately in every guest&apos;s HERE feed, and the attendee list tells you
-          who to expect at the door.
+          Posting is restricted to signed-in hostel staff, and scoped to their own hostel.{" "}
+          <Link href="/hostel-admin" style={{ textDecoration: "underline" }}>
+            Back to the portal
+          </Link>
+          .
         </p>
       </section>
     </>

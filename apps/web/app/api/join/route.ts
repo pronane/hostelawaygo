@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
 import { getEvent, toggleJoin } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: "Sign in to join" }, { status: 401 });
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -16,9 +22,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "eventId is required" }, { status: 400 });
   }
 
-  if (!getEvent(eventId)) {
+  if (!getEvent(eventId, user.id)) {
     return NextResponse.json({ error: "Unknown event" }, { status: 404 });
   }
 
-  return NextResponse.json(toggleJoin(eventId));
+  return NextResponse.json(toggleJoin(eventId, user.id));
 }

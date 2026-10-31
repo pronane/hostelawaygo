@@ -6,16 +6,15 @@
     "dev": "next dev -H 0.0.0.0 -p 3000",
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 3000",
-    "db:reset": "node scripts/reset-db.mjs"
+    "db:reset": "node scripts/reset-db.mjs",
+    "ingest": "node --no-warnings scripts/ingest.mjs"
   },
   "dependencies": {
-    "better-sqlite3": "^13.0.3",
     "next": "^16.4.3",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
