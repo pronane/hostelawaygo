@@ -2,7 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { getDb } from "@/lib/db";
-import { endSession, startSession } from "@/lib/auth";
+import { demoLoginEnabled, endSession, startSession } from "@/lib/auth";
+import { ACCOUNTS } from "@/lib/seed-extra";
 import { hashPassword, verifyPassword } from "@/lib/password";
 
 const safeNext = (value: unknown): string => {
@@ -38,6 +39,11 @@ export async function loginAction(formData: FormData) {
 export async function demoLoginAction(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const next = safeNext(formData.get("next"));
+
+  // Previously this signed in as *any* account by email with no password -
+  // including admin and hostel staff - and was live in production.
+  if (!demoLoginEnabled()) redirect("/login?error=demo_off");
+  if (!ACCOUNTS.some((a) => a.email.toLowerCase() === email)) redirect("/login?error=demo");
 
   const user = getDb()
     .prepare("SELECT id FROM travellers WHERE lower(email) = ?")

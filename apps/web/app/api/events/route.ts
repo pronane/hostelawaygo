@@ -25,13 +25,16 @@ export async function POST(request: Request) {
   const startsAt = String(body.startsAt ?? "").trim();
   const category = String(body.category ?? "social");
   const description = String(body.description ?? "").trim();
-  const priceCents = Number(body.priceCents ?? 0);
+  const priceCents = Math.round(Number(body.priceCents ?? 0));
 
   if (title.length < 3 || title.length > 120) {
     return NextResponse.json({ error: "Title must be 3–120 characters" }, { status: 400 });
   }
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(startsAt)) {
     return NextResponse.json({ error: "startsAt must be HH:mm" }, { status: 400 });
+  }
+  if (description.length > 2000) {
+    return NextResponse.json({ error: "Description must be under 2000 characters" }, { status: 400 });
   }
   if (!CATEGORIES.has(category)) {
     return NextResponse.json({ error: "Unknown category" }, { status: 400 });

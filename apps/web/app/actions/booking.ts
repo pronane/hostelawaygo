@@ -41,11 +41,13 @@ export async function payBookingAction(formData: FormData) {
 export async function cancelBookingAction(formData: FormData) {
   const user = await getCurrentUser();
   const code = String(formData.get("code") ?? "");
-  const back = String(formData.get("back") ?? "/trips");
+  const rawBack = String(formData.get("back") ?? "/trips");
+  // "//evil.example" starts with "/" too - reject protocol-relative URLs.
+  const back = rawBack.startsWith("/") && !rawBack.startsWith("//") ? rawBack : "/trips";
   if (!user) redirect(`/login?next=${encodeURIComponent(back)}`);
 
   cancelBooking(code, user.id);
   revalidatePath(`/booking/${code}`);
   revalidatePath("/trips");
-  redirect(back.startsWith("/") ? back : "/trips");
+  redirect(back);
 }

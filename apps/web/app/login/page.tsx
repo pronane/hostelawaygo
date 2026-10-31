@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { demoLoginAction, loginAction } from "@/app/actions/auth";
 import { ACCOUNTS } from "@/lib/seed-extra";
+import { demoLoginEnabled } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Sign in" };
@@ -8,6 +9,7 @@ export const metadata = { title: "Sign in" };
 const ERRORS: Record<string, string> = {
   credentials: "That email and password don't match. Try again, or use a demo account below.",
   demo: "That demo account doesn't exist any more — reset the database and it will come back.",
+  demo_off: "Demo sign-in is switched off on this site.",
 };
 
 export default async function LoginPage({
@@ -59,32 +61,36 @@ export default async function LoginPage({
         No account? <Link href={`/signup?next=${encodeURIComponent(next)}`} style={{ textDecoration: "underline" }}>Create one</Link>.
       </p>
 
-      <div className="auth-divider">
-        <span>or jump straight in</span>
-      </div>
+      {demoLoginEnabled() ? (
+        <>
+          <div className="auth-divider">
+            <span>or jump straight in</span>
+          </div>
 
-      <div className="demo-accounts">
-        {ACCOUNTS.map((account) => (
-          <form action={demoLoginAction} key={account.email}>
-            <input type="hidden" name="email" value={account.email} />
-            <input type="hidden" name="next" value={next} />
-            <button type="submit" className="demo-account">
-              <span className="demo-who">
-                <b>{account.name}</b>
-                <span>{account.demoBlurb}</span>
-              </span>
-              <span className="demo-role">
-                {account.role === "hostel_staff" ? "Hostel staff" : account.role === "admin" ? "Ops" : "Traveller"}
-              </span>
-            </button>
-          </form>
-        ))}
-      </div>
+          <div className="demo-accounts">
+            {ACCOUNTS.map((account) => (
+              <form action={demoLoginAction} key={account.email}>
+                <input type="hidden" name="email" value={account.email} />
+                <input type="hidden" name="next" value={next} />
+                <button type="submit" className="demo-account">
+                  <span className="demo-who">
+                    <b>{account.name}</b>
+                    <span>{account.demoBlurb}</span>
+                  </span>
+                  <span className="demo-role">
+                    {account.role === "hostel_staff" ? "Hostel staff" : account.role === "admin" ? "Ops" : "Traveller"}
+                  </span>
+                </button>
+              </form>
+            ))}
+          </div>
 
-      <p className="auth-footnote">
-        These are seeded demo accounts. The password for all of them is <code>away1234</code> — one
-        click signs you in without typing it.
-      </p>
+          <p className="auth-footnote">
+            These are seeded demo accounts. The password for all of them is <code>away1234</code> — one
+            click signs you in without typing it.
+          </p>
+        </>
+      ) : null}
     </div>
   );
 }
