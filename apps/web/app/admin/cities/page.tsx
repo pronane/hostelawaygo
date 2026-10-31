@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createCityAction } from "@/app/actions/cities";
 import { requireAdmin } from "@/lib/auth";
 import { CITY_STATUS, LAUNCH_BAR } from "@/lib/cities";
-import { getCityPipeline } from "@/lib/queries";
+import { getCityPipeline, getPendingApplications } from "@/lib/queries";
 import { plural } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +30,7 @@ export default async function CitiesPage({
   await requireAdmin("/admin/cities");
   const { error } = await searchParams;
 
+  const applications = getPendingApplications();
   const pipeline = getCityPipeline().sort(
     (a, b) =>
       ORDER[a.city.status] - ORDER[b.city.status] ||
@@ -79,7 +80,38 @@ export default async function CitiesPage({
           <b>{liveEvents}</b>
           <span>THINGS ON THIS WEEK</span>
         </div>
+        <div className="stat">
+          <b>{applications.length}</b>
+          <span>APPLICATIONS WAITING</span>
+        </div>
       </div>
+
+      {applications.length > 0 ? (
+        <section style={{ marginTop: 24 }}>
+          <div className="day">
+            <h2>Waiting for a decision</h2>
+            <span>hostels that applied themselves</span>
+          </div>
+          <div className="admin-list">
+            {applications.map((app) => (
+              <Link key={app.id} href={`/admin/cities/${app.city}`} className="admin-row">
+                <div className="admin-main">
+                  <b>
+                    {app.name} · {app.city_name}
+                  </b>
+                  <span>
+                    {app.area} · {plural(app.beds, "bed")} · applied{" "}
+                    {app.applied_at ? app.applied_at.slice(0, 10) : "just now"}
+                  </span>
+                </div>
+                <div className="admin-actions">
+                  <span className="status warn">review</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section style={{ marginTop: 26 }}>
         <div className="day">

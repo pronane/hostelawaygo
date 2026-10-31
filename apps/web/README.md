@@ -34,7 +34,8 @@ The login page also shows one-click buttons for them — but only when demo sign
 |---|---|---|
 | `marta@away.app` | traveller | joining, chat, booking |
 | `ana@homelisbon.pt` | hostel staff (Home Lisbon Hostel) | `/post`, `/hostel-admin`, chat moderation |
-| `ops@away.app` | admin | everything above + `/admin/ingest` |
+| `rita@casadosol.pt` | hostel staff, **pending** | an application waiting on ops — every staff surface sends her to `/partner` |
+| `ops@away.app` | admin | everything above + `/admin/cities`, `/admin/digest`, `/admin/ingest` |
 
 Signing up for real works too: scrypt-hashed password, 30-day httpOnly session cookie.
 
@@ -51,6 +52,7 @@ Signing up for real works too: scrypt-hashed password, 30-day httpOnly session c
 | `/event/[id]` | Event detail: traveller lens, who's going, join, share, **persisted chat** with report links |
 | `/hostel/[slug]` | Hostel page, per-night availability for a date range, booking form |
 | `/hostel/[slug]/kit` | Partner kit (staff/admin): printable poster + dorm sticker with the hostel's QR, check-in lines, the attribution funnel |
+| `/partner` | Self-serve hostel application: hostel + staff account in one step, status while it waits, one-click demo login for the pending applicant |
 | `/booking/[code]` | Receipt, sandbox payment, cancellation |
 | `/trips` | Your bookings, grouped by city |
 | `/you` | Account, languages, joined events, email confirmation |
@@ -61,11 +63,13 @@ Signing up for real works too: scrypt-hashed password, 30-day httpOnly session c
 | `/post` | Hostel mode — publish tonight's event in about a minute (staff only) |
 | `/hostel-admin` | Portal: attribution funnel, upcoming events, arrivals/bookings, reported chat, cancel event (staff only) |
 | `/admin/cities` | Ops: the city pipeline — readiness per city, and "open a city" (admin only) |
-| `/admin/cities/[slug]` | One city's launch bar, the five-week runbook, its partners, and the go-live switch (admin only) |
+| `/admin/cities/[slug]` | One city's launch bar, the five-week runbook, its partners, the application queue (approve/decline), and the go-live switch (admin only) |
+| `/admin/digest` | Arrivals digest: who's due, a real preview of the email, send, and the per-trip log (admin only) |
 | `/admin/ingest` | Ops console: run the Ticketmaster import, read the run log (admin only) |
 | `POST /api/join` | Toggle a join for the signed-in traveller → `{ joined, going }`, `401` when anonymous |
 | `POST /api/events` | Create a hostel event — `401` anonymous, `403` non-staff, hostel taken from the session |
 | `POST /api/ingest` | Runs the import. Requires `x-ingest-token` or an admin session |
+| `POST /api/digest` | Sends the arrivals digest (`{ dryRun }`). Requires `x-digest-token` or an admin session |
 | `GET /api/events/[id]/stream` | SSE feed of new chat messages (`Last-Event-ID` aware) |
 | `POST /api/payments/webhook` | Signed provider callbacks: `payment.paid`, `payment.refunded`, `checkout.session.completed` |
 
@@ -90,6 +94,8 @@ The three growth problems — hostel buy-in, traveller pull, and opening a new c
 - **Ingest** runs the full pipeline (fetch → normalise → upsert → revalidate) and logs every run to `ingest_runs`. Events are keyed on `external_id`, so re-running updates instead of duplicating.
 - **Distances are computed**, not stored: every hostel, city and event carries lat/lng, and walking time comes from a haversine from the guest's actual hostel (or the city centre when there's no trip yet).
 - **Multi-city, gated**: Lisbon and Porto are live; Kraków is `opening` and Budapest `planned`. A city is only visible to travellers once it clears the launch bar in `lib/cities.ts` — three partner hostels, two of them posting, seven events in the next fortnight, a centre and a launch date. `Go live` is refused by the server action, not just greyed out in the UI. Public surfaces (picker, Explore, `/c/[slug]`, sitemap) read `status = 'live'` only, and a stale city cookie can't 404 the feed.
+- **Applications are rows too**: a hostel that applies at `/partner` becomes a `hostels` row with `status = 'pending'` plus its own staff account, in one transaction. Nothing about it is public; staff surfaces send it to `/partner` until ops approves. Approval flips it to `active`, gives it a bookable dorm and puts it in Explore — the launch bar only counts `active` partners, so an application can't inflate a city.
+- **The digest is idempotent per trip**: `digest_sends` is keyed on `(traveller, city:start_date)`, so a cron re-run can't email anyone twice, and a trip with nothing on sends nothing at all.
 - **Attribution is a table, not a claim**: `/stay/<hostel>` records an anonymous arrival per browser per day; joining an event or booking a bed stamps it. That's the scan → join → book funnel a hostel sees in its own portal, scoped to its own QR.
 - **PWA**: manifest, maskable icons, installable, conservative service worker (network-first for pages; hashed assets cached only).
 
@@ -117,6 +123,7 @@ Imported events carry the venue's real coordinates (so walking times are correct
 | `INGEST_TOKEN` | shared secret for `POST /api/ingest` and `npm run ingest` | `dev-ingest` in development; required in production (admin sessions still work) |
 | `RESEND_API_KEY` (+ `MAIL_FROM`, `APP_URL`) | sends email-confirmation links | no email; in development the link is shown on `/you` |
 | `APP_URL` | canonical origin for QR codes, sitemap and share links | `http://localhost:3000` |
+| `DIGEST_TOKEN` | shared secret for `POST /api/digest` and `npm run digest` | `dev-digest` in development; required in production (admin sessions still work) |
 | `DEMO_LOGIN` | `1` enables one-click demo sign-in outside development | on in development only |
 
 Webhooks are signed Stripe-style: `stripe-signature: t=<unix>,v1=<hmac-sha256 of "${t}.${body}">`, five-minute replay window, 400 on a bad or stale signature. Handlers are idempotent, so retries are safe.
@@ -132,14 +139,15 @@ Webhooks are signed Stripe-style: `stripe-signature: t=<unix>,v1=<hmac-sha256 of
 
 ```
 app/            routes: here, next, explore, c/[slug], event, hostel, hostel/[slug]/kit,
-                stay/[slug], booking, trips, you, login, signup, post, hostel-admin,
-                admin/{cities,ingest}, sitemap, robots, api/{join,events,ingest}
-app/actions/    server actions: auth, city, cities (pipeline), chat, booking, staff, ingest
+                stay/[slug], partner, booking, trips, you, login, signup, post, hostel-admin,
+                admin/{cities,digest,ingest}, sitemap, robots, api/{join,events,ingest,digest}
+app/actions/    server actions: auth, city, cities (pipeline), partners (approve),
+                digest, chat, booking, staff, ingest
 components/     nav, account-block, aside, event-card, join-button, post-form,
                 city-picker, chat-live (SSE), share-button, sw-register
 lib/            db, schema, seed, seed-data, seed-extra, queries, auth, password,
                 payments, ingest, fixtures/, geo, time, format, types, constants,
-                cities (launch bar), arrivals (QR attribution)
+                cities (launch bar), arrivals (QR attribution), digest (weekly email)
 scripts/        reset-db.mjs, ingest.mjs, make-icons.py
 public/         sw.js, icons/
 ```

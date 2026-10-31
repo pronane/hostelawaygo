@@ -156,14 +156,15 @@ export function getCitySupply(slug: string, days = LAUNCH_BAR.windowDays): CityS
   const to = addDays(today, days);
 
   const hostels = db
-    .prepare("SELECT COUNT(*) AS n FROM hostels WHERE city = ?")
+    .prepare("SELECT COUNT(*) AS n FROM hostels WHERE city = ? AND status = 'active'")
     .get<{ n: number }>(slug)!.n;
 
   const posting = db
     .prepare(
-      `SELECT COUNT(DISTINCT hostel_id) AS n FROM events
-       WHERE city = @slug AND cancelled = 0 AND hostel_id IS NOT NULL
-         AND starts_at >= @from AND starts_at < @to`
+      `SELECT COUNT(DISTINCT e.hostel_id) AS n FROM events e
+       JOIN hostels h ON h.id = e.hostel_id AND h.status = 'active'
+       WHERE e.city = @slug AND e.cancelled = 0
+         AND e.starts_at >= @from AND e.starts_at < @to`
     )
     .get<{ n: number }>({ slug, from: today, to })!.n;
 
@@ -319,7 +320,8 @@ export function getCityHostels(slug: string): CityHostelRow[] {
         (SELECT COUNT(*) FROM joins j JOIN events e ON e.id = j.event_id
            WHERE e.hostel_id = h.id) AS joins,
         (SELECT COUNT(*) FROM arrivals a WHERE a.hostel_id = h.id AND a.day >= @since) AS scans
-       FROM hostels h WHERE h.city = @city ORDER BY upcoming DESC, h.name ASC`
+       FROM hostels h WHERE h.city = @city AND h.status = 'active'
+       ORDER BY upcoming DESC, h.name ASC`
     )
     .all<CityHostelRow>({ city: slug, from: today, to: addDays(today, 14), since: addDays(today, -30) });
 }
@@ -605,11 +607,190 @@ export function getStaffStats(hostelId: number) {
 
 /* -------------------------------------------------------------- hostels */
 
+/**
+ * Public list: only hostels that have been approved. Applications live in the
+ * same table with status = 'pending' and must never leak into Explore, a city
+ * page, the launch bar or the sitemap.
+ */
 export function getHostels(city?: string): Hostel[] {
   const db = getDb();
   return city
-    ? db.prepare("SELECT * FROM hostels WHERE city = ? ORDER BY rating DESC").all<Hostel>(city)
-    : db.prepare("SELECT * FROM hostels ORDER BY city, rating DESC").all<Hostel>();
+    ? db
+        .prepare("SELECT * FROM hostels WHERE city = ? AND status = 'active' ORDER BY rating DESC")
+        .all<Hostel>(city)
+    : db
+        .prepare("SELECT * FROM hostels WHERE status = 'active' ORDER BY city, rating DESC")
+        .all<Hostel>();
+}
+
+/** Ops and staff surfaces: everything, whatever its state. */
+export function getAllHostels(city?: string): Hostel[] {
+  const db = getDb();
+  return city
+    ? db.prepare("SELECT * FROM hostels WHERE city = ? ORDER BY status, name").all<Hostel>(city)
+    : db.prepare("SELECT * FROM hostels ORDER BY city, status, name").all<Hostel>();
+}
+
+export function getHostelById(id: number): Hostel | undefined {
+  return getDb().prepare("SELECT * FROM hostels WHERE id = ?").get<Hostel>(id);
+}
+
+export function getCityApplications(city: string): Hostel[] {
+  return getDb()
+    .prepare("SELECT * FROM hostels WHERE city = ? AND status = 'pending' ORDER BY applied_at ASC")
+    .all<Hostel>(city);
+}
+
+export function getPendingApplications(limit = 20): (Hostel & { city_name: string })[] {
+  return getDb()
+    .prepare(
+      `SELECT h.*, COALESCE(c.name, h.city) AS city_name
+       FROM hostels h LEFT JOIN cities c ON c.slug = h.city
+       WHERE h.status = 'pending' ORDER BY h.applied_at ASC LIMIT ?`
+    )
+    .all<Hostel & { city_name: string }>(limit);
+}
+
+export type HostelApplicationInput = {
+  city: string;
+  name: string;
+  area: string;
+  description: string;
+  beds: number;
+  priceFromCents: number;
+  contactEmail: string;
+  note: string;
+};
+
+const slugify = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+
+/**
+ * A hostel applying to be on Away, and the staff account that will run it —
+ * created together, in one transaction, so we never end up with an applicant
+ * who has no hostel or a hostel nobody can log into.
+ */
+export function createPartnerApplication(
+  input: HostelApplicationInput & { contactName: string; email: string; passwordHash: string }
+): { ok: true; hostelId: number; travellerId: number } | { ok: false; error: string } {
+  const db = getDb();
+
+  const city = db.prepare("SELECT slug, lat, lng FROM cities WHERE slug = ?").get<{
+    slug: string;
+    lat: number;
+    lng: number;
+  }>(input.city);
+  if (!city) return { ok: false, error: "Pick a city we know about." };
+
+  if (db.prepare("SELECT 1 AS x FROM travellers WHERE email = ?").get(input.email)) {
+    return { ok: false, error: "That email already has an account. Sign in instead." };
+  }
+
+  const base = slugify(input.name);
+  if (!base) return { ok: false, error: "Give the hostel a name we can use in a URL." };
+  let slug = base;
+  for (let n = 2; db.prepare("SELECT 1 AS x FROM hostels WHERE slug = ?").get(slug); n += 1) {
+    slug = `${base}-${n}`;
+    if (n > 20) return { ok: false, error: "That name is taken. Try a slightly different one." };
+  }
+
+  try {
+    return db.transaction(() => {
+      const hostel = db
+        .prepare(
+          `INSERT INTO hostels (slug, city, name, area, description, rating, price_from_cents,
+             lat, lng, status, contact_email, applied_at, note, beds)
+           VALUES (@slug, @city, @name, @area, @description, 0, @price, @lat, @lng, 'pending',
+             @email, datetime('now'), @note, @beds)`
+        )
+        .run({
+          slug,
+          city: input.city,
+          name: input.name,
+          area: input.area,
+          description: input.description,
+          price: input.priceFromCents,
+          lat: city.lat,
+          lng: city.lng,
+          email: input.email,
+          note: input.note,
+          beds: input.beds,
+        });
+
+      const person = db
+        .prepare(
+          `INSERT INTO travellers (name, initials, flag, colour, solo, languages, email,
+             password_hash, role, hostel_id, email_verified_at)
+           VALUES (@name, @initials, '', '#FFD9A0', 0, 'English', @email, @hash, 'hostel_staff',
+             @hostelId, datetime('now'))`
+        )
+        .run({
+          name: input.contactName,
+          initials: input.contactName
+            .split(" ")
+            .map((w) => w[0])
+            .join("")
+            .slice(0, 2)
+            .toUpperCase(),
+          email: input.email,
+          hash: input.passwordHash,
+          hostelId: hostel.lastInsertRowid,
+        });
+
+      return { ok: true as const, hostelId: hostel.lastInsertRowid, travellerId: person.lastInsertRowid };
+    })();
+  } catch {
+    return { ok: false, error: "Something went wrong saving the application. Try again." };
+  }
+}
+
+/**
+ * Approval is the only moment a hostel becomes real: it goes active, gets a
+ * rating placeholder of "new", and gets a bookable room set so the first
+ * traveller who finds it can actually reserve a bed.
+ */
+export function approveHostel(hostelId: number): boolean {
+  const db = getDb();
+  const hostel = db.prepare("SELECT * FROM hostels WHERE id = ?").get<Hostel>(hostelId);
+  if (!hostel || hostel.status === "active") return false;
+
+  db.transaction(() => {
+    db.prepare("UPDATE hostels SET status = 'active' WHERE id = ?").run(hostelId);
+
+    const rooms = db.prepare("SELECT COUNT(*) AS n FROM rooms WHERE hostel_id = ?").get<{ n: number }>(hostelId)!;
+    if (rooms.n === 0 && hostel.price_from_cents > 0) {
+      const insRoom = db.prepare(
+        "INSERT INTO rooms (hostel_id, name, kind, beds, price_cents) VALUES (?, ?, ?, ?, ?)"
+      );
+      insRoom.run(hostelId, "Mixed dorm · 6 beds", "dorm", 6, hostel.price_from_cents);
+      insRoom.run(
+        hostelId,
+        "Private double",
+        "private",
+        2,
+        Math.round((hostel.price_from_cents * 3.4) / 100) * 100
+      );
+    }
+  })();
+
+  return true;
+}
+
+export function rejectHostel(hostelId: number): boolean {
+  return (
+    getDb().prepare("UPDATE hostels SET status = 'rejected' WHERE id = ? AND status = 'pending'").run(hostelId)
+      .changes > 0
+  );
+}
+
+export function setHostelStatus(hostelId: number, status: "active" | "paused"): void {
+  getDb().prepare("UPDATE hostels SET status = ? WHERE id = ?").run(status, hostelId);
 }
 
 export function getHostelBySlug(slug: string): Hostel | undefined {

@@ -26,7 +26,8 @@ export default async function HostelPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const query = await searchParams;
   const hostel = getHostelBySlug(slug);
-  if (!hostel) notFound();
+  // Pending and rejected applications must not be bookable, or indexable.
+  if (!hostel || hostel.status !== "active") notFound();
 
   const today = todayISO();
   const checkIn = query.in && ISO_DATE.test(query.in) ? query.in : today;
@@ -56,8 +57,8 @@ export default async function HostelPage({ params, searchParams }: Props) {
           <p className="page-sub">{hostel.description}</p>
         </div>
         <div className="rating-badge">
-          <b>{hostel.rating.toFixed(1)}</b>
-          <span>guest rating</span>
+          <b>{hostel.rating > 0 ? hostel.rating.toFixed(1) : "new"}</b>
+          <span>{hostel.rating > 0 ? "guest rating" : "no rating yet"}</span>
         </div>
       </header>
 

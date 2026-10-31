@@ -16,6 +16,9 @@ export type City = {
   launch_on: string | null;
 };
 
+/** pending: applied, awaiting ops. active: live. paused/rejected: off the map. */
+export type HostelStatus = "pending" | "active" | "paused" | "rejected";
+
 export type Hostel = {
   id: number;
   slug: string;
@@ -27,6 +30,11 @@ export type Hostel = {
   price_from_cents: number;
   lat: number;
   lng: number;
+  status: HostelStatus;
+  contact_email: string;
+  applied_at: string | null;
+  note: string;
+  beds: number;
 };
 
 export type Room = {

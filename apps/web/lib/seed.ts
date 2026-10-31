@@ -84,6 +84,24 @@ export function seed(db: Db): void {
       hostelIdByName.set(h.name, info.lastInsertRowid);
     }
 
+    /* one hostel that applied through /partner and is waiting on ops */
+    const pending = db
+      .prepare(
+        `INSERT INTO hostels (slug, city, name, area, description, rating, price_from_cents,
+           lat, lng, status, contact_email, applied_at, note, beds)
+         VALUES ('casa-do-sol', 'porto', 'Casa do Sol', 'Ribeira', @description, 0, 2200,
+           @lat, @lng, 'pending', 'rita@casadosol.pt', datetime('now', '-2 days'), @note, 48)`
+      )
+      .run({
+        description:
+          "A converted townhouse two streets back from the river. Twelve beds on the roof terrace in summer, a kitchen everyone fights over, and the owner cooks on Sundays.",
+        lat: 41.1406,
+        lng: -8.6132,
+        note: "We already do a joint pub crawl with Passenger. Happy to bring the others in.",
+      });
+    hostelIdBySlug.set("casa-do-sol", pending.lastInsertRowid);
+    hostelIdByName.set("Casa do Sol", pending.lastInsertRowid);
+
     /* rooms */
     const insRoom = db.prepare(
       "INSERT INTO rooms (hostel_id, name, kind, beds, price_cents) VALUES (?, ?, ?, ?, ?)"

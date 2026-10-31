@@ -48,7 +48,10 @@ export default async function ExplorePage() {
                     <span className="hostel-main">
                       <b>{h.name}</b>
                       <span>
-                        {h.area} · ★ {h.rating.toFixed(1)} · from {formatPrice(h.price_from_cents)}
+                        {h.area} · {h.rating > 0 ? `★ ${h.rating.toFixed(1)}` : "new"} ·{" "}
+                        {h.price_from_cents > 0
+                          ? `from ${formatPrice(h.price_from_cents)}`
+                          : "price on request"}
                       </span>
                     </span>
                     <span className="hostel-go" aria-hidden="true">
@@ -61,6 +64,20 @@ export default async function ExplorePage() {
           );
         })}
       </div>
+
+      <section style={{ marginTop: 30 }}>
+        <div className="day">
+          <h2>Run a hostel?</h2>
+          <span>free, and about a minute a night</span>
+        </div>
+        <p style={{ fontSize: 12.5, color: "#7b6e64", lineHeight: 1.7, margin: "0 0 10px" }}>
+          Put your nights at the top of the feed your guests already open, and get a printable QR
+          for reception that shows you exactly what it did.
+        </p>
+        <Link href="/partner" className="btn" style={{ display: "inline-block" }}>
+          Apply to be a partner →
+        </Link>
+      </section>
 
       {opening.length > 0 ? (
         <section style={{ marginTop: 30 }}>

@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = "6";
+export const SCHEMA_VERSION = "7";
 
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS meta (
@@ -30,7 +30,14 @@ CREATE TABLE IF NOT EXISTS hostels (
   rating REAL NOT NULL DEFAULT 0,
   price_from_cents INTEGER NOT NULL DEFAULT 0,
   lat REAL NOT NULL DEFAULT 0,
-  lng REAL NOT NULL DEFAULT 0
+  lng REAL NOT NULL DEFAULT 0,
+  -- pending applications are rows here too: one table, one truth. Public
+  -- surfaces read status = 'active' only.
+  status TEXT NOT NULL DEFAULT 'active',
+  contact_email TEXT NOT NULL DEFAULT '',
+  applied_at TEXT,
+  note TEXT NOT NULL DEFAULT '',
+  beds INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS travellers (
@@ -206,6 +213,18 @@ CREATE TABLE IF NOT EXISTS arrivals (
 );
 CREATE INDEX IF NOT EXISTS idx_arrivals_hostel ON arrivals(hostel_id, day);
 
+-- One row per trip per traveller, so a re-run of the digest job can't spam
+-- anybody. The unique key is the idempotency.
+CREATE TABLE IF NOT EXISTS digest_sends (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  traveller_id INTEGER NOT NULL REFERENCES travellers(id) ON DELETE CASCADE,
+  trip_key TEXT NOT NULL,
+  sent_at TEXT NOT NULL DEFAULT (datetime('now')),
+  status TEXT NOT NULL DEFAULT 'sent',
+  note TEXT NOT NULL DEFAULT '',
+  UNIQUE (traveller_id, trip_key)
+);
+
 CREATE TABLE IF NOT EXISTS ingest_runs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   source TEXT NOT NULL,
@@ -223,6 +242,7 @@ CREATE TABLE IF NOT EXISTS ingest_runs (
 
 /** Dropped in this order so foreign keys stay happy. */
 export const DROP_ALL = `
+DROP TABLE IF EXISTS digest_sends;
 DROP TABLE IF EXISTS arrivals;
 DROP TABLE IF EXISTS safe_nights;
 DROP TABLE IF EXISTS email_tokens;

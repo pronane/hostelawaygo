@@ -30,6 +30,8 @@ export type SessionUser = {
   role: Role;
   hostel_id: number | null;
   hostel_name: string | null;
+  /** null for travellers/admins; 'pending' until ops approves an application. */
+  hostel_status: string | null;
   solo: boolean;
   languages: string;
   /** Seeded demo accounts are pre-verified; new sign-ups verify by email link. */
@@ -46,7 +48,8 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   const row = getDb()
     .prepare(
       `SELECT t.id, t.name, t.initials, t.flag, t.colour, t.email, t.role, t.hostel_id,
-              t.solo, t.languages, t.email_verified_at, h.name AS hostel_name
+              t.solo, t.languages, t.email_verified_at, h.name AS hostel_name,
+              h.status AS hostel_status
        FROM sessions s
        JOIN travellers t ON t.id = s.user_id
        LEFT JOIN hostels h ON h.id = t.hostel_id
@@ -101,6 +104,25 @@ export async function requireStaff(nextPath = "/"): Promise<SessionUser> {
   const user = await requireUser(nextPath);
   if (!isStaff(user)) redirect("/?denied=staff");
   return user;
+}
+
+/**
+ * Hostel staff whose application hasn't been approved can't post, moderate or
+ * open the portal — they land on /partner, which explains where they are in the
+ * queue. Admins are never blocked.
+ */
+export async function requireActiveStaff(nextPath = "/"): Promise<SessionUser> {
+  const user = await requireStaff(nextPath);
+  if (user.role === "hostel_staff" && user.hostel_status !== "active") {
+    redirect("/partner?pending=1");
+  }
+  return user;
+}
+
+export function isActiveStaff(user: SessionUser | null): boolean {
+  if (!user) return false;
+  if (user.role === "admin") return true;
+  return user.role === "hostel_staff" && user.hostel_status === "active";
 }
 
 export async function requireAdmin(nextPath = "/"): Promise<SessionUser> {

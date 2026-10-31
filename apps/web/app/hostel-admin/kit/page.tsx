@@ -1,12 +1,12 @@
 import { redirect } from "next/navigation";
-import { requireStaff } from "@/lib/auth";
+import { requireActiveStaff } from "@/lib/auth";
 import { getHostels } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
 /** Stable nav target: resolves the signed-in staff member's own hostel kit. */
 export default async function KitRedirectPage() {
-  const user = await requireStaff("/hostel-admin/kit");
+  const user = await requireActiveStaff("/hostel-admin/kit");
   const hostels = getHostels();
   const hostel = user.hostel_id ? hostels.find((h) => h.id === user.hostel_id) : undefined;
 

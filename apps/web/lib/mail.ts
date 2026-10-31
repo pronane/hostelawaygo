@@ -9,7 +9,12 @@ export function mailEnabled(): boolean {
   return Boolean(process.env.RESEND_API_KEY);
 }
 
-export async function sendMail(to: string, subject: string, text: string): Promise<MailResult> {
+export async function sendMail(
+  to: string,
+  subject: string,
+  text: string,
+  html?: string
+): Promise<MailResult> {
   const key = process.env.RESEND_API_KEY;
   if (!key) return { sent: false };
   const res = await fetch("https://api.resend.com/emails", {
@@ -20,6 +25,7 @@ export async function sendMail(to: string, subject: string, text: string): Promi
       to: [to],
       subject,
       text,
+      ...(html ? { html } : {}),
     }),
     signal: AbortSignal.timeout(10_000),
   });

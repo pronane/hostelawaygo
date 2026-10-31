@@ -64,6 +64,12 @@ export function Nav({ staff, admin }: { staff: boolean; admin: boolean }) {
             </span>
             Cities
           </Link>
+          <Link href="/admin/digest" data-active={isActive("/admin/digest", false)}>
+            <span className="nic" aria-hidden="true">
+              ✉
+            </span>
+            Digest
+          </Link>
           <Link href="/admin/ingest" data-active={isActive("/admin/ingest", false)}>
             <span className="nic" aria-hidden="true">
               ⤓

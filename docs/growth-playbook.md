@@ -54,6 +54,10 @@ Then show `/c/lisbon` on a phone. Do not demo the admin. The demo is the guest's
 - The partner kit: poster, dorm sticker, check-in lines, printable (`/hostel/[slug]/kit`).
 - Their own funnel: scans → joined a night → beds booked → value (`/hostel-admin`, "Where your guests come from").
 
+**Self-serve, not sales-led**
+
+`/partner` is the application: hostel and staff account in one step, signed in immediately, status visible while it waits. Applicants land in the city console, where approving flips them live and gives them a bookable dorm. Two things this deliberately does *not* do: it doesn't create a new city (that's the runbook in §3), and it can't be done from a traveller account — one account, one role.
+
 **Never**
 
 - No channel-manager integration, no PMS, no API key, no contract to start.
@@ -134,6 +138,12 @@ Rules that make this work rather than just exist:
 - **The page is useful signed-out.** Every event links into the app, but nothing is hidden behind a login wall.
 
 Search is a 6–12 month loop. It is not the launch plan; it is the reason the launch compounds.
+
+### Loop 1b — The arrivals digest (owned, compounding)
+
+One email per stay, a few days before arrival: what's on while they're there, at walking distance from the bed they booked. `/admin/digest` previews it, sends it and logs it; `npm run digest` makes it a Monday cron.
+
+The rules that make it safe to automate: one send per trip (`digest_sends` is keyed on traveller + city + start date), no email at all when there's nothing on, and only live cities with verified addresses. The preview is the real renderer, so what ops sees is what lands in the inbox.
 
 ### Loop 3 — Share (cheap, high intent)
 
@@ -236,9 +246,9 @@ That asymmetry is the whole strategy: **the marginal city is a sales problem, no
 
 Honest list, in the order it should be built:
 
-- **Self-serve hostel sign-up.** Today ops creates the city and the hostel; a partner cannot apply. That's fine for 10 hostels and wrong at 100.
 - **Partner billing.** Pro plans are described, not implemented.
-- **A weekly email to arrivals.** "You're in Lisbon until Thursday — here's Tuesday." The mail layer exists (`lib/mail.ts`); the digest doesn't.
+- **Application triage beyond approve/decline.** No notes, no "come back in March" state, no automated reply — ops just approves or declines in the city console.
+- **Digest segmentation.** Every due traveller gets the same shape of email; there's no A/B on subject lines, and no re-send when a trip's calendar fills up after the first send.
 - **Attribution at sign-up.** A visitor who signs up from a hostel QR should keep that origin into next month's cohort, not just the arrival row.
 - **Event quality scoring.** Nothing currently stops a partner posting a low-effort listing every night; a "did anyone join?" nudge after three quiet posts would.
 - **Real Instagram/WhatsApp import.** The shortcut everyone asks for, and the one most likely to break trust. Needs a partner-consented flow, not scraping.
