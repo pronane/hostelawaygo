@@ -354,6 +354,14 @@ export function clearReport(messageId: number): void {
   getDb().prepare("UPDATE messages SET reported = 0 WHERE id = ?").run(messageId);
 }
 
+/** Hostel that owns the event a chat message belongs to (for moderation scope). */
+export function getMessageHostel(messageId: number): number | null | undefined {
+  const row = getDb()
+    .prepare("SELECT e.hostel_id AS hostel_id FROM messages m JOIN events e ON e.id = m.event_id WHERE m.id = ?")
+    .get<{ hostel_id: number | null }>(messageId);
+  return row ? row.hostel_id : undefined;
+}
+
 export function hideMessage(messageId: number): void {
   getDb().prepare("UPDATE messages SET hidden = 1 WHERE id = ?").run(messageId);
 }
@@ -418,6 +426,13 @@ export type BookingInput = {
   guests: number;
 };
 
+function isRealDate(iso: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return false;
+  const [y, m, d] = iso.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d));
+  return t.getUTCFullYear() === y && t.getUTCMonth() === m - 1 && t.getUTCDate() === d;
+}
+
 export function createBooking(
   input: BookingInput,
   me: number
@@ -428,10 +443,16 @@ export function createBooking(
     .get<Room>(input.roomId);
   if (!room) return { ok: false, error: "That room no longer exists." };
 
+  if (!isRealDate(input.checkIn) || !isRealDate(input.checkOut)) {
+    return { ok: false, error: "Those dates don't look right." };
+  }
+  if (input.checkIn < todayISO()) return { ok: false, error: "Check-in can't be in the past." };
   const nights = diffDays(input.checkIn, input.checkOut);
   if (!Number.isInteger(nights) || nights < 1) return { ok: false, error: "Check-out must be after check-in." };
   if (nights > 14) return { ok: false, error: "We only take bookings up to 14 nights." };
-  if (input.guests < 1 || input.guests > room.beds) {
+  // Number.isInteger also rejects NaN, which used to slip past both comparisons
+  // and create a booking for "NaN" guests that never counted against beds.
+  if (!Number.isInteger(input.guests) || input.guests < 1 || input.guests > room.beds) {
     return { ok: false, error: `That room takes between 1 and ${room.beds} guests.` };
   }
 
@@ -516,9 +537,12 @@ export function getBookingsForHostel(hostelId: number): (BookingDetail & { guest
 export function markBookingPaid(code: string, me: number): Payment["status"] | null {
   const db = getDb();
   const booking = db
-    .prepare("SELECT id, traveller_id FROM bookings WHERE code = ?")
-    .get<{ id: number; traveller_id: number }>(code);
+    .prepare("SELECT id, traveller_id, status FROM bookings WHERE code = ?")
+    .get<{ id: number; traveller_id: number; status: string }>(code);
   if (!booking || booking.traveller_id !== me) return null;
+  // Only a pending hold can be paid. Paying a cancelled booking used to flip it
+  // back to "confirmed" without re-checking that the bed was still free.
+  if (booking.status !== "pending") return null;
 
   return db.transaction(() => {
     db.prepare(
