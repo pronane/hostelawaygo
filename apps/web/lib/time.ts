@@ -86,3 +86,15 @@ export function endTime(startsAt: string, durationMin: number): string {
 export function nightsBetween(from: string, to: string): number {
   return Math.max(0, diffDays(from, to));
 }
+
+/** SQLite `datetime('now')` values are "YYYY-MM-DD HH:MM:SS" in UTC. */
+export function formatSqlTime(value: string): string {
+  const date = new Date(`${value.replace(" ", "T")}Z`);
+  if (Number.isNaN(date.getTime())) return value.slice(11, 16);
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: CITY_TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+}

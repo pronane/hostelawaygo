@@ -1,12 +1,19 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { createHostelEvent } from "@/lib/queries";
+import { getCurrentUser, isStaff } from "@/lib/auth";
+import { createHostelEvent, getHostels } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
 const CATEGORIES = new Set(["food", "music", "social", "outdoors", "culture", "nightlife"]);
 
 export async function POST(request: Request) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Sign in first" }, { status: 401 });
+  if (!isStaff(user)) {
+    return NextResponse.json({ error: "Only hostel staff can post events" }, { status: 403 });
+  }
+
   let body: Record<string, unknown>;
   try {
     body = (await request.json()) as Record<string, unknown>;
@@ -33,11 +40,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Price must be between €0 and €1000" }, { status: 400 });
   }
 
-  const id = createHostelEvent({ title, startsAt, priceCents, category, description });
+  const hostelId = user.hostel_id ?? getHostels()[0]?.id;
+  if (!hostelId) return NextResponse.json({ error: "No hostel attached to this account" }, { status: 400 });
+
+  const id = createHostelEvent({ title, startsAt, priceCents, category, description }, hostelId, user.id);
 
   revalidatePath("/");
   revalidatePath("/next");
   revalidatePath("/post");
+  revalidatePath("/hostel-admin");
   revalidatePath(`/event/${id}`);
 
   return NextResponse.json({ id }, { status: 201 });

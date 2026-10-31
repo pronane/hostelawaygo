@@ -1,0 +1,178 @@
+export const SCHEMA_VERSION = "3";
+
+export const SCHEMA = `
+CREATE TABLE IF NOT EXISTS meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS cities (
+  slug TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  country TEXT NOT NULL,
+  tz TEXT NOT NULL,
+  emoji TEXT NOT NULL DEFAULT '📍',
+  intro TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS hostels (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  slug TEXT NOT NULL UNIQUE,
+  city TEXT NOT NULL,
+  name TEXT NOT NULL,
+  area TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  rating REAL NOT NULL DEFAULT 0,
+  price_from_cents INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS travellers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  initials TEXT NOT NULL,
+  flag TEXT NOT NULL DEFAULT '',
+  colour TEXT NOT NULL DEFAULT '#FFD9A0',
+  solo INTEGER NOT NULL DEFAULT 1,
+  languages TEXT NOT NULL DEFAULT '',
+  email TEXT UNIQUE,
+  password_hash TEXT,
+  role TEXT NOT NULL DEFAULT 'traveller',
+  hostel_id INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  city TEXT NOT NULL,
+  hostel_id INTEGER REFERENCES hostels(id),
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  starts_at TEXT NOT NULL,
+  duration_min INTEGER NOT NULL DEFAULT 120,
+  price_cents INTEGER NOT NULL DEFAULT 0,
+  source TEXT NOT NULL,
+  category TEXT NOT NULL,
+  emoji TEXT NOT NULL DEFAULT '📍',
+  cover_from TEXT NOT NULL DEFAULT '#FFD9A0',
+  cover_to TEXT NOT NULL DEFAULT '#FF9D6B',
+  venue TEXT NOT NULL,
+  walk_minutes INTEGER NOT NULL DEFAULT 10,
+  capacity INTEGER,
+  cancelled INTEGER NOT NULL DEFAULT 0,
+  tags TEXT NOT NULL DEFAULT '[]',
+  lens TEXT NOT NULL DEFAULT '[]',
+  created_by TEXT NOT NULL DEFAULT 'seed',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  external_id TEXT,
+  origin TEXT NOT NULL DEFAULT 'seed'
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_events_external ON events(city, external_id);
+CREATE INDEX IF NOT EXISTS idx_events_city_start ON events(city, starts_at);
+CREATE INDEX IF NOT EXISTS idx_events_hostel ON events(hostel_id);
+
+CREATE TABLE IF NOT EXISTS trips (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  traveller_id INTEGER NOT NULL,
+  city TEXT NOT NULL,
+  starts_on TEXT NOT NULL,
+  ends_on TEXT NOT NULL,
+  hostel_id INTEGER,
+  arrival_time TEXT NOT NULL DEFAULT '14:00',
+  departure_time TEXT NOT NULL DEFAULT '10:00'
+);
+
+CREATE TABLE IF NOT EXISTS joins (
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  traveller_id INTEGER NOT NULL REFERENCES travellers(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (event_id, traveller_id)
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  id TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES travellers(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
+CREATE TABLE IF NOT EXISTS messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  traveller_id INTEGER NOT NULL REFERENCES travellers(id),
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  reported INTEGER NOT NULL DEFAULT 0,
+  hidden INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_messages_event ON messages(event_id, created_at);
+
+CREATE TABLE IF NOT EXISTS rooms (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  hostel_id INTEGER NOT NULL REFERENCES hostels(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'dorm',
+  beds INTEGER NOT NULL DEFAULT 1,
+  price_cents INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS bookings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  code TEXT NOT NULL UNIQUE,
+  traveller_id INTEGER NOT NULL REFERENCES travellers(id),
+  hostel_id INTEGER NOT NULL REFERENCES hostels(id),
+  room_id INTEGER NOT NULL REFERENCES rooms(id),
+  check_in TEXT NOT NULL,
+  check_out TEXT NOT NULL,
+  guests INTEGER NOT NULL DEFAULT 1,
+  nights INTEGER NOT NULL,
+  total_cents INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_bookings_room ON bookings(room_id, check_in, check_out);
+CREATE INDEX IF NOT EXISTS idx_bookings_user ON bookings(traveller_id);
+
+CREATE TABLE IF NOT EXISTS payments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  booking_id INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL DEFAULT 'sandbox',
+  reference TEXT NOT NULL,
+  amount_cents INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'requires_payment',
+  created_at TEXT NOT NULL,
+  paid_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS ingest_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  source TEXT NOT NULL,
+  mode TEXT NOT NULL DEFAULT 'fixture',
+  started_at TEXT NOT NULL,
+  finished_at TEXT,
+  fetched INTEGER NOT NULL DEFAULT 0,
+  inserted INTEGER NOT NULL DEFAULT 0,
+  updated INTEGER NOT NULL DEFAULT 0,
+  skipped INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'running',
+  note TEXT NOT NULL DEFAULT ''
+);
+`;
+
+/** Dropped in this order so foreign keys stay happy. */
+export const DROP_ALL = `
+DROP TABLE IF EXISTS payments;
+DROP TABLE IF EXISTS bookings;
+DROP TABLE IF EXISTS rooms;
+DROP TABLE IF EXISTS messages;
+DROP TABLE IF EXISTS sessions;
+DROP TABLE IF EXISTS joins;
+DROP TABLE IF EXISTS trips;
+DROP TABLE IF EXISTS events;
+DROP TABLE IF EXISTS travellers;
+DROP TABLE IF EXISTS hostels;
+DROP TABLE IF EXISTS cities;
+DROP TABLE IF EXISTS ingest_runs;
+DROP TABLE IF EXISTS meta;
+`;

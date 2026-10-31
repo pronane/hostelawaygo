@@ -2,7 +2,7 @@ import type { Source } from "./constants";
 
 export type SeedEvent = {
   key: string;
-  city: "lisbon" | "porto";
+  city: string;
   hostel?: string;
   dayOffset: number;
   time: string;
@@ -22,14 +22,67 @@ export type SeedEvent = {
   seated: number; // seeded attendees
 };
 
-export const HOSTELS: { city: string; name: string; area: string }[] = [
-  { city: "lisbon", name: "Home Lisbon Hostel", area: "Baixa" },
-  { city: "lisbon", name: "Sunset Destination Hostel", area: "Cais do Sodré" },
-  { city: "lisbon", name: "Yes! Lisbon Hostel", area: "Baixa" },
-  { city: "lisbon", name: "Lost Inn Lisbon", area: "Bairro Alto" },
-  { city: "porto", name: "Pilot Design Hostel", area: "Aliados" },
-  { city: "porto", name: "The Passenger Hostel", area: "São Bento" },
-  { city: "porto", name: "Selina Porto", area: "Cedofeita" },
+export const HOSTELS: {
+  city: string;
+  slug: string;
+  name: string;
+  area: string;
+  description: string;
+  rating: number;
+  priceFrom: number;
+}[] = [
+  {
+    city: "lisbon", slug: "home-lisbon", name: "Home Lisbon Hostel", area: "Baixa",
+    description:
+      "The one with the long dinner table. Family dinner every night, a small bar downstairs, and five minutes from the river.",
+    rating: 9.2, priceFrom: 2400,
+  },
+  {
+    city: "lisbon", slug: "sunset-lisbon", name: "Sunset Destination Hostel", area: "Cais do Sodré",
+    description:
+      "Rooftop, river views, and the best place in the city to watch the light go. Sangria from 21:00.",
+    rating: 8.9, priceFrom: 2800,
+  },
+  {
+    city: "lisbon", slug: "yes-lisbon", name: "Yes! Lisbon Hostel", area: "Baixa",
+    description:
+      "Party-forward. Pub crawl every night, bar on site, and it is right in the middle of everything.",
+    rating: 9.0, priceFrom: 2200,
+  },
+  {
+    city: "lisbon", slug: "lost-inn-lisbon", name: "Lost Inn Lisbon", area: "Bairro Alto",
+    description:
+      "Quiet-ish, sociable, and six minutes from the bars of Bairro Alto. Good kitchen, better terrace.",
+    rating: 8.7, priceFrom: 2600,
+  },
+  {
+    city: "porto", slug: "pilot-porto", name: "Pilot Design Hostel", area: "Aliados",
+    description:
+      "Design-y and central with a serious breakfast. The Douro day trips leave from reception at 09:00.",
+    rating: 9.1, priceFrom: 2500,
+  },
+  {
+    city: "porto", slug: "passenger-porto", name: "The Passenger Hostel", area: "São Bento",
+    description:
+      "Inside the station. Genuinely. Karaoke on Thursdays and the best location in Porto.",
+    rating: 9.4, priceFrom: 2700,
+  },
+  {
+    city: "porto", slug: "selina-porto", name: "Selina Porto", area: "Cedofeita",
+    description: "Coworking, yoga, and a very good café downstairs. Slower pace, longer stays.",
+    rating: 8.4, priceFrom: 2900,
+  },
+  {
+    city: "krakow", slug: "greg-tom-krakow", name: "Greg & Tom Hostel", area: "Old Town",
+    description:
+      "Pierogi night, vodka night, and a courtyard that gets loud in the best way. Two minutes from the main square.",
+    rating: 9.3, priceFrom: 1800,
+  },
+  {
+    city: "krakow", slug: "mosquito-krakow", name: "Mosquito Hostel", area: "Old Town",
+    description: "Small, cheap, and five minutes from the square. Staff will plan your whole week.",
+    rating: 9.0, priceFrom: 1500,
+  },
 ];
 
 export const TRAVELLERS: {

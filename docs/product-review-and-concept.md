@@ -230,16 +230,36 @@ Hostel ARPU is low, so the B2C side (affiliate + event commission) has to carry 
 - **Hostel posting** (`/post`): publish tonight's event in under a minute; it appears in the feed immediately.
 - **PWA**: manifest, maskable icons, installable, conservative service worker.
 
-Deliberately still missing: auth (single demo traveller), live ingest, chat, payments, booking. Each is a real decision, not an oversight — see `apps/web/README.md`.
+Deliberately still missing in that first slice: auth (single demo traveller), live ingest, chat, payments, booking. Each was a real decision, not an oversight — see `apps/web/README.md`.
 
 ---
 
 ## 12. Open questions for the next round
 
-1. **Do we go supply-first now?** The slice proves the traveller surface. The harder question is whether to build the hostel portal and recruit 10–15 founding Lisbon hostels before adding more cities.
-2. **How does event supply get in?** Ticketmaster API for ticketed inventory; the rest is manual curation and hostel self-serve. What do we automate first?
-3. **Auth and identity** — magic link, or defer until after the first hostel is live with a shared login?
-4. **Revenue test** — is Hostelworld affiliate the first thing to wire up, or commission on paid hostel events?
+1. **Do we go supply-first now?** The traveller surface is proven and the hostel portal now exists. The open question is recruitment: which 10–15 founding Lisbon hostels do we onboard by hand, and what do we give them that Hostelworld doesn't?
+2. **How does event supply get in?** Ticketmaster Discovery is wired (import + dedupe + run log). Next questions: do we trust its categorisation enough to publish unreviewed, and who owns the non-ticketed long tail — scrapers, venue feeds, or hostel self-serve?
+3. **Auth and identity** — email + password ships today; magic link and Google/Apple are the obvious next step, along with email verification before a hostel account can publish.
+4. **Revenue test** — Hostelworld affiliate is still unwired. Cheapest test is commission on paid hostel events (we now have the booking and payment rows to measure it).
+5. **Chat at scale** — 20s polling is fine for a demo and wrong for 10k concurrent users. What replaces it, and does the moderation queue need SLAs before chat goes public?
+
+---
+
+## 13. What changed in the second build round (31 Oct 2026)
+
+The four things that were deferred as "post-launch" — auth, ingest, chat, payments/booking — plus the hostel portal and multi-city support are now built, and every one of them writes real rows.
+
+| Area | Now in the app |
+|---|---|
+| Accounts | `travellers` + `sessions`, scrypt hashes, 30-day httpOnly cookie, `requireUser/Staff/Admin` guards, `?next=` validated |
+| Supply, automated | Ticketmaster Discovery import (live with `TICKETMASTER_API_KEY`, fixture-replay otherwise), dedupe on `external_id`, `ingest_runs` audit log, `/admin/ingest` console, `npm run ingest` for cron |
+| Supply, manual | `/post` restricted to signed-in staff, scoped to their own hostel; no client-supplied hostel id |
+| Hostel portal | `/hostel-admin`: upcoming events, joins, arrivals/bookings, reported chat, cancel event |
+| Chat | Persisted per event, throttled 8/10min per traveller, report → hide/dismiss moderation loop |
+| Booking | Per-night availability from a capacity re-check inside a transaction, 1–14 nights, `AWY-XXXXXX` codes, `/trips`, receipt |
+| Payments | `payments` rows, `provider = 'sandbox'`, `requires_payment → paid`, cancellation preserved |
+| Cities | Lisbon, Porto, Kraków — separate feeds, hostels and wall-clock times; the current city is a cookie, not a URL |
+
+Verified end-to-end over HTTP (no headless browser available): signup → session → `/you`; demo login → `/hostel-admin`; chat post persists and renders; 9th message in the window is throttled; report shows in the portal and hide removes it from the event; booking a dorm for 2 nights × 2 guests lands at €96 and pays to `confirmed`; a second booking cancels to `cancelled`; ingest inserts 6 imported events and a re-run updates 6 with 0 duplicates.
 
 ---
 

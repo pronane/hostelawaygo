@@ -1,4 +1,3 @@
-export const DEMO_USER_ID = 1;
 export const HOME_HOSTEL_NAME = "Home Lisbon Hostel";
 
 export type Source = "hostel" | "city" | "community" | "ticketed";
