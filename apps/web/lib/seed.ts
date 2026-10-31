@@ -102,11 +102,11 @@ export function seed(db: Db): void {
     /* accounts: Marta gets credentials on the seeded traveller row */
     const passwordHash = hashPassword("away1234");
     const updateAccount = db.prepare(
-      "UPDATE travellers SET email = @email, password_hash = @hash, role = @role, hostel_id = @hostel_id WHERE id = @id"
+      "UPDATE travellers SET email = @email, password_hash = @hash, role = @role, hostel_id = @hostel_id, email_verified_at = datetime('now') WHERE id = @id"
     );
     const insertAccount = db.prepare(
-      `INSERT INTO travellers (name, initials, flag, colour, solo, languages, email, password_hash, role, hostel_id)
-       VALUES (@name, @initials, @flag, @colour, 0, @languages, @email, @password_hash, @role, @hostel_id)`
+      `INSERT INTO travellers (name, initials, flag, colour, solo, languages, email, password_hash, role, hostel_id, email_verified_at)
+       VALUES (@name, @initials, @flag, @colour, 0, @languages, @email, @password_hash, @role, @hostel_id, datetime('now'))`
     );
 
     for (const account of ACCOUNTS) {

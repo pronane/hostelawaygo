@@ -74,6 +74,8 @@ export type EventRow = {
   created_by: string;
   origin: string;
   external_id: string | null;
+  /** 0 = guests of the posting hostel only */
+  open_to_all: number;
   going: number;
   solo_going: number;
   is_joined: number;

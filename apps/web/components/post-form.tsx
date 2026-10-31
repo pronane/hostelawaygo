@@ -18,6 +18,7 @@ export function PostForm({ audience, hostels }: { audience: number; hostels: num
   const [price, setPrice] = useState("Free");
   const [category, setCategory] = useState("food");
   const [description, setDescription] = useState("");
+  const [openToAll, setOpenToAll] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,7 +39,7 @@ export function PostForm({ audience, hostels }: { audience: number; hostels: num
       const res = await fetch("/api/events", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title, startsAt: time, priceCents, category, description }),
+        body: JSON.stringify({ title, startsAt: time, priceCents, category, description, openToAll }),
       });
       if (!res.ok) throw new Error(await res.text());
       const data = (await res.json()) as { id: number };
@@ -120,6 +121,15 @@ export function PostForm({ audience, hostels }: { audience: number; hostels: num
           placeholder="Where to meet, what to bring, whether people can come alone…"
         />
       </div>
+
+      <label style={{ display: "flex", gap: 10, alignItems: "flex-start", margin: "14px 2px 0", fontSize: 13 }}>
+        <input type="checkbox" checked={openToAll} onChange={(e) => setOpenToAll(e.target.checked)} style={{ marginTop: 3 }} />
+        <span>
+          <b>Open to travellers from other hostels</b>
+          <br />
+          <span style={{ color: "#8b7d72" }}>Untick for guests-only events — only people staying with you will see it.</span>
+        </span>
+      </label>
 
       {error ? (
         <div className="notice warn" role="alert">

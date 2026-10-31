@@ -24,6 +24,7 @@ export function EventCard({ event }: { event: FeedEvent }) {
         <div className="row1">
           <span className="time">{timeOf(event.starts_at)}</span>
           <span className={`badge ${event.source}`}>{event.source}</span>
+          {event.open_to_all === 0 ? <span className="badge" style={{ background: "#f3ede6", color: "#6b5b50" }}>guests only</span> : null}
           {label ? <span className={`badge window${isOut ? " out" : ""}`}>{label}</span> : null}
           {event.isJoined ? <span className="joined-flag">✓ going</span> : null}
         </div>

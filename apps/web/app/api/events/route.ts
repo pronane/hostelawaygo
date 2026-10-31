@@ -46,7 +46,8 @@ export async function POST(request: Request) {
   const hostelId = user.hostel_id ?? getHostels()[0]?.id;
   if (!hostelId) return NextResponse.json({ error: "No hostel attached to this account" }, { status: 400 });
 
-  const id = createHostelEvent({ title, startsAt, priceCents, category, description }, hostelId, user.id);
+  const openToAll = body.openToAll !== false;
+  const id = createHostelEvent({ title, startsAt, priceCents, category, description, openToAll }, hostelId, user.id);
 
   revalidatePath("/");
   revalidatePath("/next");

@@ -13,6 +13,8 @@ export async function sendMessageAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user) redirect(`/login?next=${encodeURIComponent(path)}`);
   if (!getEvent(eventId, user.id)) redirect("/");
+  // Event chats are where strangers meet - require a confirmed email first.
+  if (!user.email_verified) redirect(`${path}?chat=verify#chat`);
   if (!body) redirect(`${path}#chat`);
   if (recentMessageCount(user.id) >= 8) redirect(`${path}?chat=slow#chat`);
 
