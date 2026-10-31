@@ -400,7 +400,7 @@ export function getMessageById(messageId: number, me: number | null): Message | 
   );
 }
 
-export function recentMessageCount(me: number, minutes = 5): number {
+export function recentMessageCount(me: number, minutes = 10): number {
   return (
     getDb()
       .prepare(

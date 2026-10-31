@@ -5,6 +5,10 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { addMessage, getEvent, recentMessageCount, reportMessage } from "@/lib/queries";
 
+/** Chat rate limit. Keep in step with the README ("8 messages per 10 minutes"). */
+const CHAT_LIMIT = 8;
+const CHAT_WINDOW_MINUTES = 10;
+
 export async function sendMessageAction(formData: FormData) {
   const eventId = Number(formData.get("eventId"));
   const body = String(formData.get("body") ?? "").trim();
@@ -14,7 +18,9 @@ export async function sendMessageAction(formData: FormData) {
   if (!user) redirect(`/login?next=${encodeURIComponent(path)}`);
   if (!getEvent(eventId, user.id)) redirect("/");
   if (!body) redirect(`${path}#chat`);
-  if (recentMessageCount(user.id) >= 8) redirect(`${path}?chat=slow#chat`);
+  if (recentMessageCount(user.id, CHAT_WINDOW_MINUTES) >= CHAT_LIMIT) {
+    redirect(`${path}?chat=slow#chat`);
+  }
 
   addMessage(eventId, user.id, body);
 

@@ -26,7 +26,9 @@ npm run db:reset     # deletes the DB; it re-seeds on next request
 
 ## Sign in
 
-Every demo account uses the password `away1234`. The login page also has one-click buttons for them.
+Every demo account uses the password `away1234`.
+
+The login page also shows one-click buttons for them — but only when demo sign-in is enabled (`DEMO_LOGIN=1`, or any `npm run dev` session). One click skips the password, so it is off by default in production: a deployment shouldn't hand out hostel-staff and admin sessions to whoever finds the URL. Set `DEMO_LOGIN=1` when you want the demo experience, and leave it unset when you don't.
 
 | Account | Role | What it unlocks |
 |---|---|---|
@@ -65,7 +67,7 @@ Signing up for real works too: scrypt-hashed password, 30-day httpOnly session c
 - **Joins, chat, bookings and payments are rows**, not UI state: join counts, "who's going", the chat log, per-night availability and the receipt all read from SQLite.
 - **Chat is live over SSE.** `/api/events/:id/stream` holds one connection per open chat and pushes new messages as they land (2s server-side lookahead, heartbeats, `Last-Event-ID` resume after a reconnect). No polling from the client, and the page still renders the history server-side for no-JS. Throttled at 8 messages per 10 minutes; hidden messages never reach the stream.
 - **Booking** re-checks capacity inside a transaction ("Someone just took the last bed"), prices per night, supports 1–14 nights, and is scoped to the signed-in guest.
-- **Payments have a lifecycle, not a toggle**: an idempotency key per booking+amount (double submits collide), a 30-minute hold window, `requires_payment → paid → refunded`, refunds on cancellation, and signed webhooks at `/api/payments/webhook`. With `STRIPE_SECRET_KEY` set the booking page hands off to a Stripe Checkout Session; without it the `sandbox` provider settles in-process.
+- **Payments have a lifecycle, not a toggle**: an idempotency key per booking+amount (double submits collide), a 30-minute hold window, `requires_payment → paid → refunded`, refunds on cancellation, and signed webhooks at `/api/payments/webhook`. With `STRIPE_SECRET_KEY` set the booking page hands off to a Stripe Checkout Session; without it the `sandbox` provider settles in-process. A payment that lands for a booking cancelled in the meantime is captured and refunded in one step, and only a full refund cancels the stay.
 - **Ingest** runs the full pipeline (fetch → normalise → upsert → revalidate) and logs every run to `ingest_runs`. Events are keyed on `external_id`, so re-running updates instead of duplicating.
 - **Distances are computed**, not stored: every hostel, city and event carries lat/lng, and walking time comes from a haversine from the guest's actual hostel (or the city centre when there's no trip yet).
 - **Multi-city**: Lisbon, Porto and Kraków, each with its own feed, hostels and timezone-aware wall-clock times.
@@ -74,9 +76,12 @@ Signing up for real works too: scrypt-hashed password, 30-day httpOnly session c
 ## Ingest
 
 ```bash
-npm run ingest                         # POSTs to /api/ingest on localhost:3000
+npm run ingest                                      # dev build: uses the dev-ingest fallback
+INGEST_TOKEN=… npm run ingest                       # production: the token is required
 AWAY_BASE_URL=https://… INGEST_TOKEN=… npm run ingest
 ```
+
+A production build has **no** fallback token — `POST /api/ingest` accepts an `x-ingest-token` matching `INGEST_TOKEN` or an admin session, and nothing else. `npm run ingest` will tell you so (401) if you forget.
 
 Set `TICKETMASTER_API_KEY` to hit the Ticketmaster Discovery API live (free tier: 5,000 calls/day). **With no key, the same pipeline replays a bundled Ticketmaster-shaped fixture** — the normalise/upsert/revalidate path is identical, it just doesn't leave the box. The mode is shown on `/admin/ingest` and stored on every run.
 
@@ -89,7 +94,8 @@ Imported events carry the venue's real coordinates (so walking times are correct
 | `TICKETMASTER_API_KEY` | live Discovery API pulls | bundled fixture replay |
 | `STRIPE_SECRET_KEY` | booking page redirects to Stripe Checkout; webhooks confirm | `sandbox` provider settles in-process |
 | `PAYMENT_WEBHOOK_SECRET` | HMAC key for `/api/payments/webhook` | falls back to `dev-webhook-secret` (dev only) |
-| `INGEST_TOKEN` | shared secret for `POST /api/ingest` | falls back to `dev-ingest` |
+| `INGEST_TOKEN` | shared secret for `POST /api/ingest` and `npm run ingest` | `dev-ingest` in dev; **required in production** (admin sessions still work) |
+| `DEMO_LOGIN` | `1` shows one-click demo sign-in, `0` hides it | on in dev, off in production |
 
 Webhooks are signed Stripe-style: `stripe-signature: t=<unix>,v1=<hmac-sha256 of "${t}.${body}">`, five-minute replay window, 400 on a bad or stale signature. Handlers are idempotent, so retries are safe.
 

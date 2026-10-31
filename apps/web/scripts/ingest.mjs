@@ -16,6 +16,13 @@ const body = await res.json().catch(() => ({}));
 
 if (!res.ok) {
   console.error(`Ingest failed (${res.status}):`, body.error ?? body);
+  if (res.status === 401) {
+    console.error(
+      "\nA production build has no fallback token. Set INGEST_TOKEN on the server and pass\n" +
+        "the same value here:  INGEST_TOKEN=… npm run ingest\n" +
+        "(An admin session can also trigger a run from /admin/ingest.)"
+    );
+  }
   process.exit(1);
 }
 

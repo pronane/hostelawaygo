@@ -150,20 +150,44 @@ export function getPaymentByReference(reference: string): Payment | undefined {
 }
 
 /** Idempotent: paying an already-paid payment is a no-op that reports success. */
+/**
+ * Settles a payment. Idempotent: paying an already-paid or refunded payment is a
+ * no-op that reports the current state.
+ *
+ * If the booking was cancelled while the payment was in flight (the guest hit
+ * cancel, the webhook landed a second later), the money is captured and refunded
+ * in the same step — the bed is gone, so the ledger has to say so rather than
+ * leaving a paid stay that no longer exists.
+ */
 export function completePayment(reference: string): Payment | null {
   const db = getDb();
   const payment = getPaymentByReference(reference);
   if (!payment) return null;
   if (payment.status === "paid" || payment.status === "refunded") return payment;
 
-  db.prepare(
-    "UPDATE payments SET status = 'paid', paid_at = datetime('now'), expires_at = NULL WHERE id = ?"
-  ).run(payment.id);
-  db.prepare("UPDATE bookings SET status = 'confirmed' WHERE id = ? AND status != 'cancelled'").run(
-    payment.booking_id
-  );
+  const booking = db
+    .prepare("SELECT id, status FROM bookings WHERE id = ?")
+    .get<{ id: number; status: string }>(payment.booking_id);
 
-  return { ...payment, status: "paid", expires_at: null };
+  return db.transaction((): Payment => {
+    if (booking?.status === "cancelled") {
+      db.prepare(
+        `UPDATE payments SET status = 'refunded', paid_at = datetime('now'),
+           refunded_at = datetime('now'), expires_at = NULL
+         WHERE id = ?`
+      ).run(payment.id);
+      return { ...payment, status: "refunded", expires_at: null, refunded_at: payment.refunded_at };
+    }
+
+    db.prepare(
+      "UPDATE payments SET status = 'paid', paid_at = datetime('now'), expires_at = NULL WHERE id = ?"
+    ).run(payment.id);
+    db.prepare("UPDATE bookings SET status = 'confirmed' WHERE id = ? AND status != 'cancelled'").run(
+      payment.booking_id
+    );
+
+    return { ...payment, status: "paid", expires_at: null };
+  })();
 }
 
 export function refundPayment(bookingId: number): boolean {
@@ -237,20 +261,42 @@ export function verifyWebhookSignature(
 export function applyWebhookEvent(event: WebhookEvent): { ok: boolean; note: string } {
   if (event.type === "payment.paid") {
     const payment = completePayment(event.data.reference);
-    return payment ? { ok: true, note: `paid ${payment.reference}` } : { ok: false, note: "unknown reference" };
+    if (!payment) return { ok: false, note: "unknown reference" };
+    // A payment that lands after the guest cancelled is refunded on the spot.
+    return {
+      ok: true,
+      note:
+        payment.status === "refunded"
+          ? `captured then refunded ${payment.reference} (booking already cancelled)`
+          : `paid ${payment.reference}`,
+    };
   }
 
   if (event.type === "payment.refunded") {
+    const db = getDb();
     const payment = getPaymentByReference(event.data.reference);
     if (!payment) return { ok: false, note: "unknown reference" };
-    getDb()
-      .prepare("UPDATE payments SET status = 'refunded', refunded_at = datetime('now') WHERE id = ?")
-      .run(payment.id);
-    // A provider-side refund means the stay is off, not just the money.
-    getDb()
-      .prepare("UPDATE bookings SET status = 'cancelled' WHERE id = ?")
-      .run(payment.booking_id);
-    return { ok: true, note: `refunded ${payment.reference}` };
+
+    const booking = db
+      .prepare("SELECT id, total_cents FROM bookings WHERE id = ?")
+      .get<{ id: number; total_cents: number }>(payment.booking_id);
+
+    db.prepare("UPDATE payments SET status = 'refunded', refunded_at = datetime('now') WHERE id = ?").run(
+      payment.id
+    );
+
+    // Only a full refund means the stay is off. A partial one is an adjustment,
+    // not a cancellation, so the booking stays as it is.
+    const full = !booking || payment.amount_cents >= booking.total_cents;
+    if (full) {
+      db.prepare("UPDATE bookings SET status = 'cancelled' WHERE id = ?").run(payment.booking_id);
+      return { ok: true, note: `refunded ${payment.reference}` };
+    }
+
+    return {
+      ok: true,
+      note: `partially refunded ${payment.reference} — booking left in place`,
+    };
   }
 
   const payment = getPaymentByReference(event.data.reference);

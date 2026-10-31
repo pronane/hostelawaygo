@@ -278,6 +278,20 @@ The new honest limits are narrower: the Stripe path is implemented but unexercis
 
 ---
 
+## 15. Follow-ups after the first review (same day)
+
+Reviewing `master` as merged turned up three places where the docs had drifted from the code, and two edges in the payment state machine. All five are fixed in the follow-up branch.
+
+| Finding | Fix |
+|---|---|
+| README promised one-click demo sign-in, but a production build hides it and refuses the action | Documented the `DEMO_LOGIN` switch: on in dev, off in production, opt in with `DEMO_LOGIN=1` |
+| README said `INGEST_TOKEN` falls back to `dev-ingest`; in production there is no fallback | Configuration table corrected, ingest docs show the token, and `npm run ingest` explains the 401 |
+| README claimed an 8-messages-per-10-minutes chat throttle; the code used 5 minutes | Window is now 10 minutes in code, with named constants next to the limit |
+| A payment landing for a booking cancelled in the meantime stayed `paid` with no refund | `completePayment` captures and refunds in one transaction when the booking is already cancelled |
+| Any `payment.refunded` webhook cancelled the stay | Only a full refund cancels; a partial refund leaves the booking alone and says so in the run note |
+
+---
+
 ### Sources
 
 - Hostelworld app features, Social Pass, City/Hostel Chats, Linkups, 14-day pre-check-in — [Hostelworld Social Pass](https://www.hostelworld.com/socialpass), [Google Play listing](https://play.google.com/store/apps/details?id=com.hostelworld.app), [App Store listing](https://apps.apple.com/py/app/hostelworld-hostel-travel-app/id348890820?l=en-GB), [Hostelworld blog](https://www.hostelworld.com/blog/what-is-hostelworld-the-ultimate-platform-for-affordable-stays/)
