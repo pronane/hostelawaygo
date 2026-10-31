@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Away — concept prototype</title>
+<style>
+  :root{
+    --paper:#FAF6F1; --ink:#191310; --muted:#7B6E64; --line:#EDE3D8;
+    --card:#FFFFFF; --coral:#FF5A36; --amber:#FFB020; --green:#0F8A5F;
+    --blue:#2F6FED; --purple:#7A5BFF; --radius:20px;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    margin:0;font-family:var(--font);color:var(--ink);
+    background:
+      radial-gradient(900px 600px at 12% 0%, #FFF3E6 0%, transparent 55%),
+      radial-gradient(800px 700px at 100% 100%, #F3EEE8 0%, transparent 50%),
+      #EFE9E2;
+    display:flex;align-items:center;justify-content:center;gap:56px;
+    padding:40px 28px;min-height:100vh;
+  }
+
+  /* ---------- side panel ---------- */
+  .side{max-width:340px}
+  .side .kicker{
+    font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--coral);
+    font-weight:700;margin-bottom:14px
+  }
+  .side h1{font-size:44px;line-height:.95;letter-spacing:-.035em;margin:0 0 14px;font-weight:800}
+  .side h1 em{font-style:normal;color:var(--coral)}
+  .side p{color:#5E5249;font-size:14px;line-height:1.55;margin:0 0 18px}
+  .side ul{list-style:none;padding:0;margin:0 0 22px}
+  .side li{
+    font-size:13.5px;line-height:1.45;color:#3F3630;padding:9px 0 9px 26px;
+    position:relative;border-bottom:1px solid rgba(25,19,16,.08)
+  }
+  .side li:before{
+    content:"";position:absolute;left:2px;top:15px;width:9px;height:9px;border-radius:3px;
+    background:var(--coral);opacity:.9
+  }
+  .side li:nth-child(2):before{background:var(--amber)}
+  .side li:nth-child(3):before{background:var(--green)}
+  .side li:nth-child(4):before{background:var(--purple)}
+  .side .note{font-size:11.5px;color:#8B7D72;line-height:1.5;border-top:1px solid rgba(25,19,16,.1);padding-top:14px}
+
+  /* ---------- phone ---------- */
+  .phone{
+    width:390px;height:800px;flex:0 0 auto;background:var(--paper);
+    border-radius:46px;position:relative;overflow:hidden;
+    display:flex;flex-direction:column;
+    box-shadow:0 1px 0 rgba(255,255,255,.9) inset, 0 40px 80px -30px rgba(60,35,20,.45), 0 0 0 10px #1B1613, 0 0 0 12px #2E2723;
+  }
+  .statusbar{
+    height:44px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+    padding:0 26px;font-size:12.5px;font-weight:600;color:var(--ink);letter-spacing:.02em;
+  }
+  .statusbar .dots{display:flex;gap:4px;align-items:center}
+  .statusbar .dots i{display:block;width:4px;height:4px;border-radius:50%;background:var(--ink);opacity:.55}
+  .statusbar .batt{width:22px;height:11px;border:1.5px solid var(--ink);border-radius:3px;position:relative;opacity:.75}
+  .statusbar .batt:after{content:"";position:absolute;inset:2px;right:7px;background:var(--ink);border-radius:1px}
+
+  .screen{display:none;flex:1;overflow-y:auto;overflow-x:hidden;padding-bottom:104px;scrollbar-width:none}
+  .screen::-webkit-scrollbar{display:none}
+  .screen.active{display:block;animation:fade .28s ease both}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  /* header */
+  .head{
+    position:sticky;top:0;z-index:6;padding:6px 20px 12px;
+    background:linear-gradient(var(--paper) 72%,rgba(250,246,241,.86) 90%,rgba(250,246,241,0));
+    backdrop-filter:blur(6px);
+  }
+  .head-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .eyebrow{
+    display:flex;align-items:center;gap:7px;font-size:10.5px;letter-spacing:.15em;
+    text-transform:uppercase;color:var(--muted);font-weight:700
+  }
+  .live{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 0 0 rgba(15,138,95,.5);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(15,138,95,.45)}70%{box-shadow:0 0 0 7px rgba(15,138,95,0)}100%{box-shadow:0 0 0 0 rgba(15,138,95,0)}}
+  .city{
+    display:flex;align-items:baseline;gap:8px;margin-top:2px
+  }
+  .city h2{font-size:30px;letter-spacing:-.035em;margin:0;font-weight:800;line-height:1.05}
+  .city .chev{font-size:13px;color:var(--muted);transform:translateY(-2px)}
+  .avatar-me{
+    width:38px;height:38px;border-radius:50%;flex:0 0 auto;
+    background:linear-gradient(140deg,#FFD9A0,#FF8A5B);display:grid;place-items:center;
+    font-size:12.5px;font-weight:800;color:#6B2A12;border:2px solid #fff;
+    box-shadow:0 2px 8px rgba(120,70,40,.18)
+  }
+
+  .staybar{
+    display:flex;align-items:center;gap:8px;margin-top:11px;padding:9px 12px;
+    background:#fff;border:1px solid var(--line);border-radius:14px;font-size:11.5px;color:var(--muted)
+  }
+  .staybar b{color:var(--ink);font-weight:650}
+  .staybar .dot{width:3px;height:3px;border-radius:50%;background:#C9BBAE;flex:0 0 auto}
+  .staybar .left{margin-left:auto;color:var(--coral);font-weight:700;font-size:11px}
+
+  .chips{display:flex;gap:7px;overflow-x:auto;padding:13px 20px 4px;margin:0 -20px;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{
+    flex:0 0 auto;border:1px solid var(--line);background:#fff;color:#514740;
+    font-size:12px;font-weight:600;padding:7px 13px;border-radius:999px;cursor:pointer;
+    font-family:var(--font);transition:.16s;white-space:nowrap
+  }
+  .chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+  .chip:active{transform:scale(.96)}
+
+  /* day group */
+  .day{padding:20px 20px 4px;display:flex;align-items:baseline;gap:9px}
+  .day h3{font-size:11px;letter-spacing:.15em;text-transform:uppercase;margin:0;font-weight:800}
+  .day span{font-size:11.5px;color:var(--muted)}
+
+  /* event card */
+  .card{
+    display:flex;gap:12px;width:calc(100% - 40px);margin:9px 20px;padding:10px;
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    text-align:left;font-family:var(--font);color:inherit;cursor:pointer;
+    transition:transform .16s ease, box-shadow .16s ease;position:relative;
+  }
+  .card:hover{transform:translateY(-1px);box-shadow:0 10px 24px -14px rgba(80,50,30,.35)}
+  .card:active{transform:scale(.985)}
+  .card.is-out{opacity:.5}
+  .cover{
+    width:74px;height:74px;flex:0 0 auto;border-radius:15px;display:grid;place-items:center;
+    font-size:29px;background:linear-gradient(150deg,var(--c1,#FFD8B0),var(--c2,#FF9E7A));
+    position:relative;overflow:hidden
+  }
+  .cover:after{
+    content:"";position:absolute;inset:0;
+    background:radial-gradient(circle at 75% 15%,rgba(255,255,255,.55),transparent 55%)
+  }
+  .cover span{position:relative;z-index:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.12))}
+  .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;padding:2px 0}
+  .row1{display:flex;align-items:center;gap:6px}
+  .time{font-size:11.5px;font-weight:800;letter-spacing:.01em;color:var(--coral);font-variant-numeric:tabular-nums}
+  .badge{
+    font-size:8.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
+    padding:3px 6px;border-radius:5px;white-space:nowrap
+  }
+  .badge.hostel{background:#E4F5EC;color:#0B6E4C}
+  .badge.city{background:#E7EEFE;color:#2258C7}
+  .badge.community{background:#F0EAFE;color:#5B3DD6}
+  .badge.ticketed{background:#FFF0DC;color:#A45E00}
+  .badge.window{background:var(--ink);color:#fff}
+  .card h4{
+    margin:0;font-size:13.7px;font-weight:700;letter-spacing:-.012em;line-height:1.24;
+    overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical
+  }
+  .venue{
+    font-size:11.3px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0
+  }
+  .foot{display:flex;align-items:center;gap:6px;margin-top:auto;padding-top:4px}
+  .stack{display:flex}
+  .stack i{
+    width:17px;height:17px;border-radius:50%;border:1.5px solid #fff;margin-left:-5px;
+    font-style:normal;font-size:7.5px;font-weight:800;display:grid;place-items:center;color:#4A2E1E
+  }
+  .stack i:first-child{margin-left:0}
+  .going{font-size:10.5px;color:var(--muted)}
+  .going b{color:var(--ink);font-weight:700}
+  .price{margin-left:auto;font-size:11.5px;font-weight:800}
+  .price.free{color:var(--green)}
+  .price.paid{color:var(--ink)}
+
+  /* next screen */
+  .trip{
+    margin:6px 20px 8px;padding:16px;border-radius:24px;color:#fff;position:relative;overflow:hidden;
+    background:linear-gradient(140deg,#2A211C 0%,#4A2F22 55%,#8A3B22 100%)
+  }
+  .trip:after{
+    content:"";position:absolute;width:180px;height:180px;border-radius:50%;
+    right:-60px;top:-70px;background:radial-gradient(circle,rgba(255,160,90,.55),transparent 65%)
+  }
+  .trip .lab{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;opacity:.7;font-weight:700}
+  .trip h3{margin:6px 0 3px;font-size:22px;letter-spacing:-.03em;font-weight:800}
+  .trip p{margin:0;font-size:11.5px;opacity:.8}
+  .trip .days{display:flex;gap:6px;margin-top:14px;position:relative;z-index:1}
+  .trip .d{
+    flex:1;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.16);
+    border-radius:11px;padding:7px 0;text-align:center;font-size:10px;letter-spacing:.04em
+  }
+  .trip .d b{display:block;font-size:14px;font-weight:800;letter-spacing:-.02em}
+  .trip .d.hot{background:var(--coral);border-color:var(--coral)}
+  .windowhint{
+    margin:14px 20px 0;display:flex;gap:9px;align-items:flex-start;
+    background:#EAF4EE;border:1px solid #CFE7DA;border-radius:14px;padding:11px 13px;
+    font-size:11.5px;line-height:1.45;color:#265C43
+  }
+  .windowhint b{font-weight:750}
+
+  /* post screen */
+  .form{margin:4px 20px 0}
+  .form h3{font-size:21px;letter-spacing:-.03em;margin:0 0 4px;font-weight:800}
+  .form .sub{font-size:12px;color:var(--muted);margin:0 0 14px;line-height:1.45}
+  .templates{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:0}
+  .tpl{
+    border:1px solid var(--line);background:#fff;border-radius:11px;padding:8px 11px;
+    font-size:11.5px;font-weight:600;cursor:pointer;font-family:var(--font);color:#4A403A
+  }
+  .tpl:active{transform:scale(.96)}
+  .field{
+    background:#fff;border:1px solid var(--line);border-radius:15px;padding:11px 13px;margin-top:10px;
+  }
+  .field label{display:block;font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:3px}
+  .field input{
+    border:0;outline:0;font-family:var(--font);font-size:14px;font-weight:650;color:var(--ink);
+    width:100%;background:transparent;padding:0
+  }
+  .twocol{display:flex;gap:10px}
+  .twocol .field{flex:1}
+  .toggle{
+    display:flex;align-items:center;gap:11px;margin-top:12px;background:#fff;border:1px solid var(--line);
+    border-radius:15px;padding:12px 13px;cursor:pointer
+  }
+  .toggle .tx{flex:1}
+  .toggle .tx b{display:block;font-size:12.5px;font-weight:700}
+  .toggle .tx span{font-size:10.8px;color:var(--muted)}
+  .sw{width:38px;height:22px;border-radius:999px;background:var(--green);position:relative;flex:0 0 auto}
+  .sw:after{content:"";position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:#fff}
+  .publish{
+    width:100%;margin-top:14px;border:0;border-radius:16px;padding:15px;background:var(--coral);color:#fff;
+    font-family:var(--font);font-size:14px;font-weight:750;cursor:pointer;letter-spacing:-.01em;
+    box-shadow:0 12px 24px -12px rgba(255,90,54,.9)
+  }
+  .publish:active{transform:scale(.985)}
+  .stats{display:flex;gap:9px;margin:20px 20px 0}
+  .stat{flex:1;background:#fff;border:1px solid var(--line);border-radius:15px;padding:11px 12px}
+  .stat b{display:block;font-size:19px;letter-spacing:-.03em;font-weight:800}
+  .stat span{font-size:10px;color:var(--muted);letter-spacing:.03em}
+  .att{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)}
+  .att:last-child{border-bottom:0}
+  .att .who{flex:1}
+  .att .who b{display:block;font-size:12.5px;font-weight:700}
+  .att .who span{font-size:10.5px;color:var(--muted)}
+  .att .pill{font-size:10px;font-weight:700;color:#0B6E4C;background:#E4F5EC;padding:4px 8px;border-radius:7px}
+
+  /* tabbar */
+  .tabbar{
+    position:absolute;bottom:0;left:0;right:0;height:84px;display:flex;align-items:flex-start;
+    padding:10px 12px 0;background:rgba(250,246,241,.94);backdrop-filter:blur(14px);
+    border-top:1px solid rgba(25,19,16,.07);z-index:20
+  }
+  .tab{
+    flex:1;background:none;border:0;font-family:var(--font);cursor:pointer;color:#A2938A;
+    display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 0;font-size:9.5px;
+    font-weight:700;letter-spacing:.06em;text-transform:uppercase
+  }
+  .tab .ic{font-size:19px;line-height:1;filter:grayscale(1);opacity:.55}
+  .tab.on{color:var(--ink)}
+  .tab.on .ic{filter:none;opacity:1}
+  .tab .badgeN{
+    position:absolute;transform:translate(15px,-4px);background:var(--coral);color:#fff;
+    font-size:8px;padding:1px 4px;border-radius:5px;letter-spacing:.02em
+  }
+
+  /* sheet */
+  .scrim{
+    position:absolute;inset:0;background:rgba(25,19,16,.42);opacity:0;pointer-events:none;
+    transition:opacity .28s ease;z-index:30;backdrop-filter:blur(1.5px)
+  }
+  .scrim.on{opacity:1;pointer-events:auto}
+  .sheet{
+    position:absolute;left:0;right:0;bottom:0;max-height:88%;background:var(--paper);
+    border-radius:30px 30px 0 0;z-index:31;transform:translateY(102%);
+    transition:transform .34s cubic-bezier(.22,.9,.24,1);display:flex;flex-direction:column;overflow:hidden
+  }
+  .sheet.on{transform:none}
+  .grab{width:38px;height:4px;border-radius:99px;background:#D8CCC0;margin:9px auto 0;flex:0 0 auto}
+  .sheet-scroll{overflow-y:auto;padding:0 0 22px;scrollbar-width:none;flex:1;min-height:0}
+  .sheet-scroll::-webkit-scrollbar{display:none}
+  .hero{
+    height:132px;margin:10px 18px 0;border-radius:22px;display:grid;place-items:center;font-size:52px;
+    background:linear-gradient(150deg,var(--c1,#FFD8B0),var(--c2,#FF9E7A));position:relative;overflow:hidden
+  }
+  .hero:after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 78% 18%,rgba(255,255,255,.6),transparent 58%)}
+  .hero span{position:relative;z-index:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.15))}
+  .sheet h2{font-size:23px;line-height:1.12;letter-spacing:-.035em;margin:14px 18px 6px;font-weight:800}
+  .sheet .meta{display:flex;flex-wrap:wrap;gap:6px;margin:0 18px;align-items:center}
+  .meta .m{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px}
+  .meta .sep{width:3px;height:3px;border-radius:50%;background:#C9BBAE}
+  .lens{
+    margin:14px 18px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:13px
+  }
+  .lens .lt{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--coral);font-weight:800;margin-bottom:8px}
+  .lens ul{list-style:none;margin:0;padding:0;display:grid;gap:7px}
+  .lens li{font-size:11.8px;line-height:1.4;color:#4A403A;display:flex;gap:8px}
+  .lens li i{font-style:normal;flex:0 0 auto}
+  .desc{margin:0 18px 14px;font-size:12.5px;line-height:1.55;color:#4A403A}
+  .whos{margin:0 18px 6px;display:flex;align-items:center;gap:8px}
+  .whos .t{font-size:11px;color:var(--muted)}
+  .whos .t b{color:var(--ink)}
+  .cta{
+    display:flex;gap:8px;padding:12px 18px 20px;border-top:1px solid var(--line);
+    background:rgba(250,246,241,.97);flex:0 0 auto
+  }
+  .cta button{
+    font-family:var(--font);border-radius:15px;border:1px solid var(--line);background:#fff;
+    padding:14px 16px;font-size:13px;font-weight:700;cursor:pointer;color:var(--ink)
+  }
+  .cta .join{flex:1;background:var(--ink);border-color:var(--ink);color:#fff}
+  .cta .join.in{background:var(--green);border-color:var(--green)}
+  .cta .ic2{width:48px;padding:14px 0;text-align:center;font-size:15px}
+
+  .toast{
+    position:absolute;left:50%;bottom:104px;transform:translate(-50%,14px);
+    background:var(--ink);color:#fff;font-size:12px;font-weight:600;padding:11px 16px;border-radius:13px;
+    opacity:0;pointer-events:none;transition:.3s;z-index:60;white-space:nowrap;
+    box-shadow:0 12px 30px -12px rgba(0,0,0,.6)
+  }
+  .toast.on{opacity:1;transform:translate(-50%,0)}
+
+  @media (max-width:1080px){
+    body{padding:0;background:var(--paper)}
+    .side{display:none}
+    .phone{width:100%;height:100vh;height:100dvh;border-radius:0;box-shadow:none;
+      max-width:none}
+    .statusbar{display:none}
+    .head{padding-top:16px}
+  }
+</style>
+</head>
+<body>
+
+<aside class="side">
+  <div class="kicker">Concept prototype · not a build</div>
+  <h1>What's on<br><em>here</em>. And<br><em>next</em>.</h1>
+  <p>A hostel-native event guide with two live windows: the city you're in tonight, and the city you're arriving in on Tuesday.</p>
+  <ul>
+    <li><b>Breadth</b> — hostel events and the city's own festivals, gigs and markets in one timeline.</li>
+    <li><b>Both windows</b> — no paying for a pass, no losing the last city when you switch.</li>
+    <li><b>Traveller lens</b> — is it free, can I walk in alone, how far from my bed, will I make the last metro.</li>
+    <li><b>Supply side</b> — hostels post tonight's thing in 60 seconds. Every bed is a channel.</li>
+  </ul>
+  <div class="note">All names, venues and numbers are mock data. Tap a card for the detail sheet, tap a tab, filter with the chips. Nothing is connected to a backend.</div>
+</aside>
+
+<div class="phone" id="phone">
+  <div class="statusbar">
+    <span>21:04</span>
+    <div class="dots"><i></i><i></i><i></i><i></i></div>
+    <div class="batt"></div>
+  </div>
+
+  <!-- ============ HERE ============ -->
+  <section class="screen active" id="scr-here">
+    <div class="head">
+      <div class="head-top">
+        <div>
+          <div class="eyebrow"><span class="live"></span> Here · Sat 31 Oct</div>
+          <div class="city"><h2>Lisbon</h2><span class="chev">▾</span></div>
+        </div>
+        <div class="avatar-me">MK</div>
+      </div>
+      <div class="staybar">
+        <span>🛏</span><b>Home Lisbon Hostel</b><span class="dot"></span><span>3 nights left</span>
+        <span class="left">Change</span>
+      </div>
+      <div class="chips" id="chips">
+        <button class="chip" aria-pressed="true" data-f="all">Tonight</button>
+        <button class="chip" aria-pressed="false" data-f="free">Free</button>
+        <button class="chip" aria-pressed="false" data-f="solo">Good solo</button>
+        <button class="chip" aria-pressed="false" data-f="music">Music</button>
+        <button class="chip" aria-pressed="false" data-f="food">Food</button>
+        <button class="chip" aria-pressed="false" data-f="outdoors">Outdoors</button>
+        <button class="chip" aria-pressed="false" data-f="early">Back by midnight</button>
+      </div>
+    </div>
+    <div id="here-list"></div>
+  </section>
+
+  <!-- ============ NEXT ============ -->
+  <section class="screen" id="scr-next">
+    <div class="head">
+      <div class="head-top">
+        <div>
+          <div class="eyebrow">Next stop · in 12 days</div>
+          <div class="city"><h2>Porto</h2><span class="chev">▾</span></div>
+        </div>
+        <div class="avatar-me">MK</div>
+      </div>
+    </div>
+
+    <div class="trip">
+      <div class="lab">Your window</div>
+      <h3>Porto · 3 nights</h3>
+      <p>Arriving Thu 12 Nov 14:20 · leaving Sun 15 Nov 09:10</p>
+      <div class="days">
+        <div class="d hot"><b>12</b>Thu</div>
+        <div class="d hot"><b>13</b>Fri</div>
+        <div class="d hot"><b>14</b>Sat</div>
+        <div class="d"><b>15</b>Sun</div>
+      </div>
+    </div>
+    <div class="windowhint">
+      <span>🎯</span>
+      <div><b>41 things on while you're there.</b> We only show what falls inside your dates — nothing before you land, nothing after your bus.</div>
+    </div>
+    <div id="next-list"></div>
+  </section>
+
+  <!-- ============ POST ============ -->
+  <section class="screen" id="scr-post">
+    <div class="head">
+      <div class="head-top">
+        <div>
+          <div class="eyebrow">Hostel mode · Home Lisbon</div>
+          <div class="city"><h2>Post tonight</h2></div>
+        </div>
+        <div class="avatar-me">AN</div>
+      </div>
+    </div>
+
+    <div class="form">
+      <p class="sub">Goes live to <b>412 guests</b> in 3 hostels nearby. Takes about a minute — and yes, it fills your bar.</p>
+      <div class="templates" id="tpls">
+        <button class="tpl">Family dinner</button>
+        <button class="tpl">Pub crawl</button>
+        <button class="tpl">Walking tour</button>
+        <button class="tpl">Beer Olympics</button>
+        <button class="tpl">Live music</button>
+      </div>
+      <div class="field">
+        <label>What's on</label>
+        <input id="titleInput" value="Family dinner: Mozambican curry" />
+      </div>
+      <div class="twocol">
+        <div class="field"><label>Starts</label><input value="19:30" /></div>
+        <div class="field"><label>Price</label><input value="Free" /></div>
+      </div>
+      <div class="toggle">
+        <div class="tx"><b>Open to other hostels nearby</b><span>Yes! Lisbon, Sunset, Home — 3 properties</span></div>
+        <div class="sw"></div>
+      </div>
+      <button class="publish" id="publishBtn">Publish to 3 hostels</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><b>312</b><span>VIEWS TONIGHT</span></div>
+      <div class="stat"><b>24</b><span>JOINED</span></div>
+      <div class="stat"><b>2</b><span>SPOTS LEFT</span></div>
+    </div>
+
+    <div class="day"><h3>Who's coming</h3><span>24 guests · 6 properties</span></div>
+    <div style="margin:0 20px 20px">
+      <div class="att"><div class="stack"><i style="background:#FFD9A0">MK</i></div><div class="who"><b>Marta K.</b><span>Yes! Lisbon · arrived alone · Polish, English</span></div><span class="pill">Paid</span></div>
+      <div class="att"><div class="stack"><i style="background:#BFE3FF">TR</i></div><div class="who"><b>Tom R.</b><span>Sunset Destination · travelling solo</span></div><span class="pill">Paid</span></div>
+      <div class="att"><div class="stack"><i style="background:#D9F0D0">AO</i></div><div class="who"><b>Aiko O.</b><span>Home Lisbon · group of 3</span></div><span class="pill">Paid</span></div>
+      <div class="att"><div class="stack"><i style="background:#FFD6E7">LC</i></div><div class="who"><b>Luis C.</b><span>Lost Inn Lisbon · local host</span></div><span class="pill">Host</span></div>
+    </div>
+  </section>
+
+  <!-- tabbar -->
+  <nav class="tabbar">
+    <button class="tab on" data-scr="scr-here"><span class="ic">◉</span>Here</button>
+    <button class="tab" data-scr="scr-next"><span class="ic">✈</span>Next</button>
+    <button class="tab" data-scr="scr-post"><span class="ic">＋</span>Post</button>
+  </nav>
+
+  <!-- sheet -->
+  <div class="scrim" id="scrim"></div>
+  <div class="sheet" id="sheet">
+    <div class="grab"></div>
+    <div class="sheet-scroll" id="sheetBody"></div>
+    <div class="cta">
+      <button class="ic2" id="saveBtn">♡</button>
+      <button class="join" id="joinBtn">Join · 24 going</button>
+      <button class="ic2">↗</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+/* ---------------- mock data ---------------- */
+const LIS = [
+  {id:'1', day:'Tonight', time:'19:30', title:"Family dinner: Mozambican curry", venue:'Home Lisbon Hostel · your hostel',
+   dist:'0 min', src:'hostel', price:'Free', emoji:'🍛', c1:'#FFD7A8', c2:'#FF9D6B', going:18, solo:12,
+   tags:['free','solo','food','early'],
+   desc:"The one that started it all. Cooked by staff, eaten at one long table, no phones. Turn up at 19:25 and sit next to somebody new — that's the whole point.",
+   lens:["12 of 18 going arrived solo","You're in this building — 0 min","Done by 21:00, plenty of night left"]},
+
+  {id:'2', day:'Tonight', time:'21:00', title:"Sunset sangria on the roof terrace", venue:'Sunset Destination Hostel · 6 min walk',
+   dist:'6 min', src:'hostel', price:'€8', emoji:'🍹', c1:'#FFC9B0', c2:'#F2705B', going:31, solo:19,
+   tags:['solo','music','early'],
+   desc:"Rooftop above the river, jug of sangria, someone will have a guitar by 21:30. Open to guests from any hostel, €8 gets you one jug and a decent sunset.",
+   lens:["19 of 31 going arrived solo","6 min walk from your bed","Ends ~23:00 — metro still running"]},
+
+  {id:'3', day:'Tonight', time:'22:30', title:"Pub crawl: Bairro Alto → Cais do Sodré", venue:'Yes! Lisbon Hostel · 9 min walk',
+   dist:'9 min', src:'hostel', price:'€12', emoji:'🍻', c1:'#FFE0A3', c2:'#FFB020', going:44, solo:33,
+   tags:['solo','music'],
+   desc:"Four bars, one welcome shot, and about 40 people who also don't know anyone yet. The classic. Bring ID, cash for bars, and shoes you can walk in.",
+   lens:["33 of 44 going arrived solo","9 min walk, group meets in reception","Finishes late — no last metro, share a taxi"]},
+
+  {id:'4', day:'Tonight', time:'23:00', title:"Fado na rua — Alfama street sessions", venue:'Rua dos Remédios, Alfama · 14 min walk',
+   dist:'14 min', src:'city', price:'Free', emoji:'🎶', c1:'#C8B8FF', c2:'#7A5BFF', going:26, solo:9,
+   tags:['free','music','early'],
+   desc:"Neighbours pull chairs onto the pavement and sing until someone complains. Genuinely one of the best free things in the city. Quiet, respectful, no filming.",
+   lens:["Locals' night, not a tourist show","14 min walk, or 6 min by tram","Free — buy a drink nearby"]},
+
+  {id:'5', day:'Tomorrow · Sun 1 Nov', time:'10:00', title:"Free walking tour: Baixa & Mouraria", venue:'Praça do Comércio · 18 min walk',
+   dist:'18 min', src:'city', price:'Free', emoji:'🚶', c1:'#BFE3FF', c2:'#5AA9F0', going:38, solo:22,
+   tags:['free','solo','outdoors'],
+   desc:"Three hours, tips-based, and it's where half the hostel ends up meeting each other. Show up five minutes early, the queue gets long.",
+   lens:["22 of 38 going arrived solo","Tip-based — budget €10","Outdoors, wear actual shoes"]},
+
+  {id:'6', day:'Tomorrow · Sun 1 Nov', time:'20:00', title:"Beer Olympics", venue:'Home Lisbon Hostel · your hostel',
+   dist:'0 min', src:'hostel', price:'Free', emoji:'🏆', c1:'#FFD6C9', c2:'#FF7A59', going:16, solo:14,
+   tags:['free','solo','early'],
+   desc:"Teams of four, drawn on the night, so you don't need to bring anyone. Winner takes the hostel bar tab. Losers take the washing-up.",
+   lens:["14 of 16 going arrived solo","Teams drawn on the night — come alone","Done by 22:30"]},
+
+  {id:'7', day:'Mon 2 Nov', time:'18:00', title:"Sunset kayak on the Tagus", venue:'Doca de Santo Amaro · 25 min walk',
+   dist:'25 min', src:'ticketed', price:'€25', emoji:'🛶', c1:'#A9E5E0', c2:'#2FA9A0', going:6, solo:3,
+   tags:['outdoors'],
+   desc:"Two hours on the water as the light goes orange. Beginner-friendly, all gear included. Only 2 spots left for Saturday.",
+   lens:["Group of 6 going, 3 solo","25 min walk — take the 15E tram","Book ahead, this sells out"]},
+
+  {id:'8', day:'Mon 2 Nov', time:'21:30', title:"Live jazz + €3 vinho verde", venue:'Graça, Clube de Fado · 12 min walk',
+   dist:'12 min', src:'community', price:'€5', emoji:'🎷', c1:'#D8C7FF', c2:'#8A6BFF', going:12, solo:7,
+   tags:['music','early'],
+   desc:"Tiny room, proper players, tiny prices. Posted by another traveller from Yes! Lisbon — she's going at 21:15 and happy to walk over with anyone.",
+   lens:["Posted by a traveller, not a promoter","7 of 12 going arrived solo","Ends 23:30 — walkable home"]}
+];
+
+const POR = [
+  {id:'p1', day:'Thu 12 Nov · your arrival day', time:'18:30', title:"Porto wine cellar crawl, Gaia", venue:'Vila Nova de Gaia · 20 min walk', src:'hostel', price:'€20', emoji:'🍷', c1:'#E7C6C1', c2:'#A5534A', going:21, solo:14, inWindow:true,
+   desc:"Three cellars, three tastings, one bridge walk at golden hour. Starts 18:30 because that's when the last tours go out.",
+   lens:["14 of 21 going arrived solo","You land 14:20 — plenty of time","Ends 21:30, walkable back"]},
+  {id:'p2', day:'Fri 13 Nov', time:'21:00', title:"Live samba at Maus Hábitos", venue:'Rua Passos Manuel · 15 min walk', src:'ticketed', price:'€10', emoji:'🎶', c1:'#C8B8FF', c2:'#7A5BFF', going:9, solo:5, inWindow:true,
+   desc:"Art-space-turned-bar, samba until 2am, €10 door. The kind of night people plan their trip around.",
+   lens:["Small group, 5 solo","15 min walk from your hostel","Late — pre-book a taxi back"]},
+  {id:'p3', day:'Sat 14 Nov', time:'09:00', title:"Day trip: Douro valley by train", venue:'São Bento station · 10 min walk', src:'community', price:'€35', emoji:'🚂', c1:'#CFE8C7', c2:'#4E9B5F', going:5, solo:4, inWindow:true,
+   desc:"Train to Pinhão, two vineyards, back by 19:00. Posted by two travellers looking for two more to split a tasting.",
+   lens:["4 of 5 going arrived solo","Whole day — clear your calendar","Back by 19:00"]},
+  {id:'p4', day:'Sun 15 Nov · your leaving day', time:'11:00', title:"Sunday flea market, Praça da Batalha", venue:'Praça da Batalha · 8 min walk', src:'city', price:'Free', emoji:'🛍️', c1:'#FFE0A3', c2:'#F0A32B', going:14, solo:6, inWindow:true,
+   desc:"Old cameras, tiles, someone selling their grandmother's records. Right by the station, so it's a good last stop before the bus.",
+   lens:["8 min walk from your hostel","Free — cash only","You leave 09:10 — this won't fit ✗"]},
+  {id:'p5', day:'Mon 16 Nov · after you leave', time:'20:00', title:"Karaoke night, The Passenger", venue:'Rua da Boavista', src:'hostel', price:'Free', emoji:'🎤', c1:'#FFD6C9', c2:'#FF7A59', going:12, solo:8, inWindow:false,
+   desc:"Happens the night after your bus. Shown greyed out so you can see what you're missing — and re-plan if you want to stay longer.",
+   lens:["Outside your dates","You leave Porto 15 Nov"]}
+];
+
+/* ---------------- render ---------------- */
+const initials = n => n.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+const avatarColors = ['#FFD9A0','#BFE3FF','#D9F0D0','#FFD6E7','#E7D6FF'];
+
+function cardHTML(e, i){
+  const stack = ['MK','TR','AO','LC'].slice(0, e.going > 30 ? 4 : 3)
+    .map((n,k)=>`<i style="background:${avatarColors[k]}">${n}</i>`).join('');
+  const paid = e.price.toLowerCase().includes('free');
+  return `
+  <button class="card ${e.inWindow===false?'is-out':''}" data-id="${e.id}">
+    <div class="cover" style="--c1:${e.c1};--c2:${e.c2}"><span>${e.emoji}</span></div>
+    <div class="body">
+      <div class="row1">
+        <span class="time">${e.time}</span>
+        <span class="badge ${e.src}">${e.src}</span>
+        ${e.inWindow===true?'<span class="badge window">In your window</span>':''}
+        ${e.inWindow===false?'<span class="badge window" style="background:#9A8B80">After you leave</span>':''}
+      </div>
+      <h4>${e.title}</h4>
+      <p class="venue">${e.venue}</p>
+      <div class="foot">
+        <div class="stack">${stack}</div>
+        <span class="going"><b>${e.going}</b> going</span>
+        <span class="price ${paid?'free':'paid'}">${e.price}</span>
+      </div>
+    </div>
+  </button>`;
+}
+
+function renderHere(filter='all'){
+  const list = document.getElementById('here-list');
+  const filtered = filter==='all' ? LIS : LIS.filter(e=>e.tags.includes(filter));
+  let html='', currentDay='';
+  let shown=0;
+  filtered.forEach(e=>{
+    if(e.day!==currentDay){
+      currentDay=e.day;
+      const count = filtered.filter(x=>x.day===e.day).length;
+      html += `<div class="day"><h3>${e.day}</h3><span>${count} ${count===1?'thing':'things'} on</span></div>`;
+    }
+    html += cardHTML(e);
+    shown++;
+  });
+  if(!shown){
+    html = `<div style="margin:40px 32px;text-align:center;color:#8B7D72;font-size:13px;line-height:1.6">
+      Nothing on with that filter tonight.<br><span style="font-size:11.5px">Try clearing it — there are 8 things on in the next three days.</span></div>`;
+  }
+  list.innerHTML = html;
+  list.querySelectorAll('.card').forEach(c=>c.addEventListener('click',()=>openSheet(c.dataset.id)));
+}
+
+function renderNext(){
+  const list=document.getElementById('next-list');
+  let html='', day='';
+  POR.forEach(e=>{
+    if(e.day!==day){
+      day=e.day;
+      html += `<div class="day"><h3>${e.day}</h3><span>${e.inWindow?'in your window':'outside your dates'}</span></div>`;
+    }
+    html += cardHTML(e);
+  });
+  list.innerHTML=html;
+  list.querySelectorAll('.card').forEach(c=>c.addEventListener('click',()=>openSheet(c.dataset.id)));
+}
+
+/* ---------------- interactions ---------------- */
+const all = [...LIS, ...POR];
+const scrim=document.getElementById('scrim'), sheet=document.getElementById('sheet');
+const sheetBody=document.getElementById('sheetBody'), joinBtn=document.getElementById('joinBtn');
+let openEvent=null, joined=false;
+
+function openSheet(id){
+  const e = all.find(x=>x.id===id); if(!e) return;
+  openEvent=e; joined=false;
+  const avatarRows = ['Marta K.','Tom R.','Aiko O.','Luis C.'].slice(0,3).map((n,k)=>
+    `<div class="stack"><i style="width:22px;height:22px;font-size:9px;background:${avatarColors[k]}">${initials(n)}</i></div>`).join('');
+  sheetBody.innerHTML = `
+    <div class="hero" style="--c1:${e.c1};--c2:${e.c2}"><span>${e.emoji}</span></div>
+    <h2>${e.title}</h2>
+    <div class="meta">
+      <span class="m">🕘 ${e.time}</span><span class="sep"></span>
+      <span class="m">${e.venue}</span><span class="sep"></span>
+      <span class="m">${e.price}</span><span class="sep"></span>
+      <span class="badge ${e.src}">${e.src}</span>
+    </div>
+    <div class="lens">
+      <div class="lt">The traveller lens</div>
+      <ul>${e.lens.map(l=>`<li><i>✓</i><span>${l}</span></li>`).join('')}</ul>
+    </div>
+    <p class="desc">${e.desc}</p>
+    <div class="whos">
+      ${avatarRows}
+      <span class="t"><b>${e.going} going</b> · ${e.solo} arrived alone · 4 hostels</span>
+    </div>
+    <div style="margin:14px 18px 0;font-size:11px;color:#8B7D72;line-height:1.5">
+      ${e.inWindow===false?'This is outside your Porto dates.':'Meet at the venue — public place, staff on site, no DMs needed.'}
+    </div>`;
+  joinBtn.textContent = `Join · ${e.going} going`;
+  joinBtn.classList.remove('in');
+  scrim.classList.add('on'); sheet.classList.add('on');
+}
+
+function closeSheet(){ scrim.classList.remove('on'); sheet.classList.remove('on'); }
+scrim.addEventListener('click', closeSheet);
+
+joinBtn.addEventListener('click', ()=>{
+  if(!openEvent) return;
+  joined = !joined;
+  if(joined){
+    joinBtn.textContent = `You're in · ${openEvent.going+1} going`;
+    joinBtn.classList.add('in');
+    toast("Added to your night. We'll send a reminder at 18:30.");
+  } else {
+    joinBtn.textContent = `Join · ${openEvent.going} going`;
+    joinBtn.classList.remove('in');
+    toast("Removed. No hard feelings.");
+  }
+});
+
+document.getElementById('saveBtn').addEventListener('click', ()=>toast("Saved to your Porto list."));
+
+let toastT;
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('on');
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'),2600);
+}
+
+/* tabs */
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    tab.classList.add('on');
+    document.getElementById(tab.dataset.scr).classList.add('active');
+  });
+});
+
+/* chips */
+document.getElementById('chips').addEventListener('click', e=>{
+  const c = e.target.closest('.chip'); if(!c) return;
+  document.querySelectorAll('#chips .chip').forEach(x=>x.setAttribute('aria-pressed','false'));
+  c.setAttribute('aria-pressed','true');
+  renderHere(c.dataset.f);
+});
+
+/* templates */
+document.getElementById('tpls').addEventListener('click', e=>{
+  const b=e.target.closest('.tpl'); if(!b) return;
+  const map={'Family dinner':'Family dinner: Mozambican curry','Pub crawl':'Pub crawl: Bairro Alto → Cais do Sodré',
+    'Walking tour':'Free walking tour: Baixa & Mouraria','Beer Olympics':'Beer Olympics — teams drawn at 20:00',
+    'Live music':'Live music on the terrace, 21:00'};
+  document.getElementById('titleInput').value = map[b.textContent] || b.textContent;
+  toast('Template loaded. Edit anything you like.');
+});
+
+document.getElementById('publishBtn').addEventListener('click', ()=>{
+  toast('Published. Live for 412 guests in 3 hostels.');
+});
+
+/* init */
+renderHere(); renderNext();
+</script>
+</body>
+</html>
