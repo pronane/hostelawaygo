@@ -4,6 +4,7 @@ import { hashPassword } from "./password";
 import { EVENTS, HOSTELS, TRAVELLERS } from "./seed-data";
 import { ACCOUNTS, CITIES, EXTRA_EVENTS, ROOM_TEMPLATES, SEED_MESSAGES } from "./seed-extra";
 import { addDays, todayISO } from "./time";
+import { CITY_CENTRE, HOSTEL_COORDS, coordsForVenue } from "./geo";
 
 function pick<T>(input: T[], n: number, seed: number): T[] {
   const a = [...input];
@@ -30,18 +31,23 @@ export function seed(db: Db): void {
   const run = db.transaction(() => {
     /* cities */
     const insCity = db.prepare(
-      "INSERT INTO cities (slug, name, country, tz, emoji, intro) VALUES (@slug, @name, @country, @tz, @emoji, @intro)"
+      `INSERT INTO cities (slug, name, country, tz, emoji, intro, lat, lng)
+       VALUES (@slug, @name, @country, @tz, @emoji, @intro, @lat, @lng)`
     );
-    for (const c of CITIES) insCity.run(c);
+    for (const c of CITIES) {
+      const centre = CITY_CENTRE[c.slug] ?? CITY_CENTRE.lisbon;
+      insCity.run({ ...c, lat: centre.lat, lng: centre.lng });
+    }
 
     /* hostels */
     const insHostel = db.prepare(
-      `INSERT INTO hostels (slug, city, name, area, description, rating, price_from_cents)
-       VALUES (@slug, @city, @name, @area, @description, @rating, @price_from_cents)`
+      `INSERT INTO hostels (slug, city, name, area, description, rating, price_from_cents, lat, lng)
+       VALUES (@slug, @city, @name, @area, @description, @rating, @price_from_cents, @lat, @lng)`
     );
     const hostelIdBySlug = new Map<string, number>();
     const hostelIdByName = new Map<string, number>();
     for (const h of HOSTELS) {
+      const point = HOSTEL_COORDS[h.slug] ?? CITY_CENTRE[h.city] ?? CITY_CENTRE.lisbon;
       const info = insHostel.run({
         slug: h.slug,
         city: h.city,
@@ -50,6 +56,8 @@ export function seed(db: Db): void {
         description: h.description,
         rating: h.rating,
         price_from_cents: h.priceFrom,
+        lat: point.lat,
+        lng: point.lng,
       });
       hostelIdBySlug.set(h.slug, info.lastInsertRowid);
       hostelIdByName.set(h.name, info.lastInsertRowid);
@@ -135,10 +143,10 @@ export function seed(db: Db): void {
     /* events */
     const insEvent = db.prepare(`
       INSERT INTO events (city, hostel_id, title, description, starts_at, duration_min,
-        price_cents, source, category, emoji, cover_from, cover_to, venue, walk_minutes,
+        price_cents, source, category, emoji, cover_from, cover_to, venue, lat, lng, walk_minutes,
         capacity, tags, lens, created_by, origin)
       VALUES (@city, @hostel_id, @title, @description, @starts_at, @duration_min,
-        @price_cents, @source, @category, @emoji, @cover_from, @cover_to, @venue, @walk_minutes,
+        @price_cents, @source, @category, @emoji, @cover_from, @cover_to, @venue, @lat, @lng, @walk_minutes,
         @capacity, @tags, @lens, 'seed', 'seed')
     `);
     const insJoin = db.prepare("INSERT OR IGNORE INTO joins (event_id, traveller_id) VALUES (?, ?)");
@@ -149,6 +157,11 @@ export function seed(db: Db): void {
 
     allEvents.forEach((e, index) => {
       const tags = e.priceCents === 0 ? [...new Set([...e.tags, "free"])] : e.tags;
+      const hostelSlug = e.hostel
+        ? HOSTELS.find((h) => h.slug === e.hostel || h.name === e.hostel)?.slug
+        : undefined;
+      const hostelPoint = hostelSlug ? HOSTEL_COORDS[hostelSlug] : null;
+      const point = hostelPoint ?? coordsForVenue(e.venue, e.city, hostelPoint);
       const info = insEvent.run({
         city: e.city,
         hostel_id: e.hostel ? hostelIdByName.get(e.hostel) ?? null : null,
@@ -163,6 +176,8 @@ export function seed(db: Db): void {
         cover_from: e.cover[0],
         cover_to: e.cover[1],
         venue: e.venue,
+        lat: point.lat,
+        lng: point.lng,
         walk_minutes: e.walkMinutes,
         capacity: e.capacity ?? null,
         tags: JSON.stringify(tags),
@@ -219,9 +234,16 @@ export function seed(db: Db): void {
           addDays(today, -2), addDays(today, 1), nights, total);
 
       db.prepare(
-        `INSERT INTO payments (booking_id, provider, reference, amount_cents, status, created_at, paid_at)
-         VALUES (?, 'sandbox', ?, ?, 'paid', datetime('now', '-2 days'), datetime('now', '-2 days'))`
-      ).run(info.lastInsertRowid, `pay_${info.lastInsertRowid}_seed`, total);
+        `INSERT INTO payments (booking_id, provider, reference, idempotency_key, amount_cents, status,
+           created_at, expires_at, paid_at)
+         VALUES (?, 'sandbox', ?, ?, ?, 'paid', datetime('now', '-2 days'),
+           datetime('now', '-1 day'), datetime('now', '-2 days'))`
+      ).run(
+        info.lastInsertRowid,
+        `pay_${info.lastInsertRowid}_seed`,
+        `seed-booking-${info.lastInsertRowid}`,
+        total
+      );
     }
 
     /* meta */

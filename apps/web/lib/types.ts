@@ -7,6 +7,8 @@ export type City = {
   tz: string;
   emoji: string;
   intro: string;
+  lat: number;
+  lng: number;
 };
 
 export type Hostel = {
@@ -18,6 +20,8 @@ export type Hostel = {
   description: string;
   rating: number;
   price_from_cents: number;
+  lat: number;
+  lng: number;
 };
 
 export type Room = {
@@ -57,7 +61,12 @@ export type EventRow = {
   cover_from: string;
   cover_to: string;
   venue: string;
+  lat: number | null;
+  lng: number | null;
   walk_minutes: number;
+  price_max_cents: number | null;
+  currency: string;
+  ticket_url: string | null;
   capacity: number | null;
   cancelled: number;
   tags: string;
@@ -82,6 +91,8 @@ export type FeedEvent = Omit<
   isJoined: boolean;
   avatars: string[];
   status?: WindowStatus;
+  /** Where the walk estimate is measured from: a hostel name, or "the city centre". */
+  walkFrom: string;
 };
 
 export type Trip = {
@@ -114,11 +125,16 @@ export type Payment = {
   id: number;
   booking_id: number;
   provider: string;
+  method: string;
   reference: string;
+  idempotency_key: string;
   amount_cents: number;
-  status: "requires_payment" | "paid" | "refunded";
+  currency: string;
+  status: "requires_payment" | "paid" | "refunded" | "expired";
   created_at: string;
+  expires_at: string | null;
   paid_at: string | null;
+  refunded_at: string | null;
 };
 
 export type Booking = {
@@ -144,7 +160,10 @@ export type BookingDetail = Booking & {
   room_kind: string;
   payment_status: Payment["status"] | null;
   payment_reference: string | null;
+  payment_provider: string | null;
+  payment_expires_at: string | null;
   paid_at: string | null;
+  refunded_at: string | null;
 };
 
 export type IngestRun = {

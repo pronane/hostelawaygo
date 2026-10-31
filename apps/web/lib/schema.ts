@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = "3";
+export const SCHEMA_VERSION = "4";
 
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS meta (
@@ -12,7 +12,9 @@ CREATE TABLE IF NOT EXISTS cities (
   country TEXT NOT NULL,
   tz TEXT NOT NULL,
   emoji TEXT NOT NULL DEFAULT '📍',
-  intro TEXT NOT NULL DEFAULT ''
+  intro TEXT NOT NULL DEFAULT '',
+  lat REAL NOT NULL DEFAULT 0,
+  lng REAL NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS hostels (
@@ -23,7 +25,9 @@ CREATE TABLE IF NOT EXISTS hostels (
   area TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
   rating REAL NOT NULL DEFAULT 0,
-  price_from_cents INTEGER NOT NULL DEFAULT 0
+  price_from_cents INTEGER NOT NULL DEFAULT 0,
+  lat REAL NOT NULL DEFAULT 0,
+  lng REAL NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS travellers (
@@ -56,7 +60,12 @@ CREATE TABLE IF NOT EXISTS events (
   cover_from TEXT NOT NULL DEFAULT '#FFD9A0',
   cover_to TEXT NOT NULL DEFAULT '#FF9D6B',
   venue TEXT NOT NULL,
+  lat REAL,
+  lng REAL,
   walk_minutes INTEGER NOT NULL DEFAULT 10,
+  price_max_cents INTEGER,
+  currency TEXT NOT NULL DEFAULT 'EUR',
+  ticket_url TEXT,
   capacity INTEGER,
   cancelled INTEGER NOT NULL DEFAULT 0,
   tags TEXT NOT NULL DEFAULT '[]',
@@ -138,12 +147,18 @@ CREATE TABLE IF NOT EXISTS payments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   booking_id INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
   provider TEXT NOT NULL DEFAULT 'sandbox',
+  method TEXT NOT NULL DEFAULT 'card',
   reference TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL UNIQUE,
   amount_cents INTEGER NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'EUR',
   status TEXT NOT NULL DEFAULT 'requires_payment',
   created_at TEXT NOT NULL,
-  paid_at TEXT
+  expires_at TEXT,
+  paid_at TEXT,
+  refunded_at TEXT
 );
+CREATE INDEX IF NOT EXISTS idx_payments_booking ON payments(booking_id);
 
 CREATE TABLE IF NOT EXISTS ingest_runs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

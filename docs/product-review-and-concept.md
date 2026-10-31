@@ -263,6 +263,21 @@ Verified end-to-end over HTTP (no headless browser available): signup → sessio
 
 ---
 
+## 14. What changed in the third build round (31 Oct 2026)
+
+The README's "deliberately stubbed" list was the backlog: four things the first two rounds knowingly faked or skipped. All four are now real.
+
+| Limit then | Now |
+|---|---|
+| Chat refreshed with a 20s `router.refresh()` poll | Server-Sent Events. `/api/events/:id/stream` keeps one connection per open chat, pushes new messages in ~2s, heartbeats, resumes from `Last-Event-ID`, and never sends a hidden message. History is still server-rendered, so no-JS works. |
+| `walk_minutes` was hand-written per event | Hostels, cities and events carry lat/lng; walking time is a haversine from the guest's booked hostel (or the city centre with no trip), at 4.8 km/h. Imported events take the venue's coordinates from Ticketmaster. |
+| Imported events showed Ticketmaster's lowest price only, with no link | Full price band (`min–max`, currency) rendered as "€15–45", plus a "Get tickets ↗" link to the provider. |
+| Payments were a single `provider = 'sandbox'` toggle | A payment lifecycle: idempotency key per booking+amount, 30-minute hold window with expiry and reopening, `requires_payment → paid → refunded`, refunds on cancellation, signed webhooks (`/api/payments/webhook`, Stripe-style HMAC with a replay window), and a Stripe Checkout hand-off when `STRIPE_SECRET_KEY` is set. |
+
+The new honest limits are narrower: the Stripe path is implemented but unexercised (no key, no egress), SSE doesn't survive multiple app processes without a broker, ticket listings aren't re-checked for availability, and walking time ignores hills and rivers. Those are in the README rather than in code comments nobody reads.
+
+---
+
 ### Sources
 
 - Hostelworld app features, Social Pass, City/Hostel Chats, Linkups, 14-day pre-check-in — [Hostelworld Social Pass](https://www.hostelworld.com/socialpass), [Google Play listing](https://play.google.com/store/apps/details?id=com.hostelworld.app), [App Store listing](https://apps.apple.com/py/app/hostelworld-hostel-travel-app/id348890820?l=en-GB), [Hostelworld blog](https://www.hostelworld.com/blog/what-is-hostelworld-the-ultimate-platform-for-affordable-stays/)

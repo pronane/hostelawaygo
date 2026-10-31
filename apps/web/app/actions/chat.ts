@@ -17,8 +17,10 @@ export async function sendMessageAction(formData: FormData) {
   if (recentMessageCount(user.id) >= 8) redirect(`${path}?chat=slow#chat`);
 
   addMessage(eventId, user.id, body);
+
+  // No redirect: the chat is live over SSE, so the message shows up on its own
+  // and the form resets without the page re-navigating.
   revalidatePath(path);
-  redirect(`${path}#chat`);
 }
 
 export async function reportMessageAction(formData: FormData) {

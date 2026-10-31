@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { formatPrice, windowLabel } from "@/lib/format";
+import { formatPriceRange, windowLabel } from "@/lib/format";
 import { timeOf } from "@/lib/time";
 import type { FeedEvent } from "@/lib/types";
 
@@ -8,6 +8,8 @@ const AV_COLOURS = ["#FFD9A0", "#BFE3FF", "#D9F0D0"];
 export function EventCard({ event }: { event: FeedEvent }) {
   const label = windowLabel(event.status);
   const isOut = event.status === "after" || event.status === "before";
+  const walk =
+    event.walk_minutes === 0 ? "at your hostel" : `${event.walk_minutes} min walk`;
 
   return (
     <Link href={`/event/${event.id}`} className={`card${isOut ? " is-out" : ""}`}>
@@ -26,7 +28,9 @@ export function EventCard({ event }: { event: FeedEvent }) {
           {event.isJoined ? <span className="joined-flag">✓ going</span> : null}
         </div>
         <h3>{event.title}</h3>
-        <p className="venue">{event.venue}</p>
+        <p className="venue">
+          {event.venue} · {walk}
+        </p>
         <div className="foot">
           <div className="stack" aria-hidden="true">
             {event.avatars.map((a, i) => (
@@ -39,7 +43,7 @@ export function EventCard({ event }: { event: FeedEvent }) {
             <b>{event.going}</b> going
           </span>
           <span className={`price${event.price_cents === 0 ? " free" : ""}`}>
-            {formatPrice(event.price_cents)}
+            {formatPriceRange(event.price_cents, event.price_max_cents, event.currency)}
           </span>
         </div>
       </div>
