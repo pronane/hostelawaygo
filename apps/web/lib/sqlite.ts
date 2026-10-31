@@ -47,6 +47,7 @@ function toArgs(params: unknown[]): unknown[] {
 export class Db {
   private readonly raw: DatabaseSync;
   private readonly statements = new Map<string, StatementSync>();
+  private depth = 0;
 
   constructor(path: string) {
     this.raw = new DatabaseSync(path);
@@ -90,8 +91,16 @@ export class Db {
     };
   }
 
+  /**
+   * Re-entrant: calling a transactional helper from inside another transaction
+   * joins the outer one instead of issuing a nested BEGIN (SQLite forbids that).
+   * The outermost call owns the commit or rollback.
+   */
   transaction<Args extends unknown[], R>(fn: (...args: Args) => R): (...args: Args) => R {
     return (...args: Args): R => {
+      if (this.depth > 0) return fn(...args);
+
+      this.depth += 1;
       this.raw.exec("BEGIN");
       try {
         const result = fn(...args);
@@ -100,6 +109,8 @@ export class Db {
       } catch (error) {
         this.raw.exec("ROLLBACK");
         throw error;
+      } finally {
+        this.depth -= 1;
       }
     };
   }
