@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { demoLoginEnabled, endSession, startSession } from "@/lib/auth";
 import { ACCOUNTS } from "@/lib/seed-extra";
 import { hashPassword, verifyPassword } from "@/lib/password";
+import { sendVerification } from "@/lib/verify";
 
 const safeNext = (value: unknown): string => {
   const next = String(value ?? "/");
@@ -86,6 +87,12 @@ export async function signupAction(formData: FormData) {
     });
 
   await startSession(info.lastInsertRowid);
+  // Email the verification link now; chatting waits until it's clicked.
+  try {
+    await sendVerification(info.lastInsertRowid, email);
+  } catch (err) {
+    console.error("[signup] verification email failed", err);
+  }
   redirect(next);
 }
 

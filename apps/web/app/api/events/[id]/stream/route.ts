@@ -20,12 +20,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!Number.isInteger(eventId) || eventId <= 0) {
     return new Response("Bad event id", { status: 400 });
   }
-  if (!getEvent(eventId, null)) {
-    return new Response("Not found", { status: 404 });
-  }
-
   const user = await getCurrentUser();
   const me = user?.id ?? null;
+  // Guests-only events are visible (and their chat readable) only to guests.
+  if (!getEvent(eventId, me)) {
+    return new Response("Not found", { status: 404 });
+  }
 
   const url = new URL(request.url);
   const headerCursor = Number(request.headers.get("last-event-id") ?? "0");

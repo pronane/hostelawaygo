@@ -220,11 +220,19 @@ export type WebhookEvent = {
   data: { reference: string };
 };
 
-export function secretForWebhooks(): string {
-  return process.env.PAYMENT_WEBHOOK_SECRET?.trim() || "dev-webhook-secret";
+/**
+ * "dev-webhook-secret" is committed to the repo, so accepting it in production
+ * would let anyone sign a fake "payment.paid" and get a free bed. Production
+ * with no secret configured verifies nothing (every webhook is rejected).
+ */
+export function secretForWebhooks(): string | null {
+  const configured = process.env.PAYMENT_WEBHOOK_SECRET?.trim();
+  if (configured) return configured;
+  return process.env.NODE_ENV === "production" ? null : "dev-webhook-secret";
 }
 
 export function signWebhook(payload: string, secret = secretForWebhooks(), at = Math.floor(Date.now() / 1000)): string {
+  if (!secret) throw new Error("PAYMENT_WEBHOOK_SECRET is not set");
   const signature = createHmac("sha256", secret).update(`${at}.${payload}`).digest("hex");
   return `t=${at},v1=${signature}`;
 }
@@ -237,7 +245,7 @@ export function verifyWebhookSignature(
   header: string | null,
   secret = secretForWebhooks()
 ): boolean {
-  if (!header) return false;
+  if (!header || !secret) return false;
 
   const parts = new Map(
     header

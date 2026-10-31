@@ -33,6 +33,19 @@ const EVENT_SELECT = `
   LEFT JOIN hostels h ON h.id = e.hostel_id
 `;
 
+/**
+ * Hostels can post "guests only" events (open_to_all = 0). Those are visible
+ * to the hostel's own guests (a trip or booking there), its staff and Away
+ * admins; everything else is open to every traveller in the city.
+ */
+const VISIBLE_TO_ME = `(
+  e.open_to_all = 1 OR e.hostel_id IS NULL
+  OR e.hostel_id IN (SELECT hostel_id FROM trips WHERE traveller_id = @me AND hostel_id IS NOT NULL)
+  OR e.hostel_id IN (SELECT hostel_id FROM bookings WHERE traveller_id = @me AND status != 'cancelled')
+  OR e.hostel_id = (SELECT hostel_id FROM travellers WHERE id = @me)
+  OR (SELECT role FROM travellers WHERE id = @me) = 'admin'
+)`;
+
 type WalkOrigin = { lat: number; lng: number; name: string };
 
 /**
@@ -71,9 +84,12 @@ function toFeedEvent(row: EventRow, origins: Map<string, WalkOrigin>): FeedEvent
     walk = walkMinutes(haversineMeters(origin, { lat: row.lat, lng: row.lng }));
   }
 
+  const tags = JSON.parse(row.tags || "[]") as string[];
+  // Lets the feed filter to hostel socials from any hostel in the city.
+  if (row.source === "hostel" && !tags.includes("hostels")) tags.push("hostels");
   return {
     ...row,
-    tags: JSON.parse(row.tags || "[]") as string[],
+    tags,
     lens: JSON.parse(row.lens || "[]") as string[],
     going: row.going,
     soloGoing: row.solo_going,
@@ -149,6 +165,7 @@ export function getCityEvents(
       `${EVENT_SELECT}
        WHERE e.city = @city AND e.cancelled = 0
          AND e.starts_at >= @from AND e.starts_at < @to
+         AND ${VISIBLE_TO_ME}
        ORDER BY e.starts_at ASC`
     )
     .all<EventRow>({
@@ -162,7 +179,7 @@ export function getCityEvents(
 
 export function getEvent(id: number, me: number | null): FeedEvent | null {
   const row = getDb()
-    .prepare(`${EVENT_SELECT} WHERE e.id = @id`)
+    .prepare(`${EVENT_SELECT} WHERE e.id = @id AND ${VISIBLE_TO_ME}`)
     .get<EventRow>({ id, me });
   return row ? toFeedEvents([row], me)[0] : null;
 }
@@ -199,7 +216,7 @@ export function toggleJoin(eventId: number, me: number) {
 
 export function getHostelPosts(hostelId: number, limit: number, me: number | null): FeedEvent[] {
   const rows = getDb()
-    .prepare(`${EVENT_SELECT} WHERE e.hostel_id = @hostelId ORDER BY e.starts_at DESC LIMIT @limit`)
+    .prepare(`${EVENT_SELECT} WHERE e.hostel_id = @hostelId AND ${VISIBLE_TO_ME} ORDER BY e.starts_at DESC LIMIT @limit`)
     .all<EventRow>({ hostelId, limit, me });
   return toFeedEvents(rows, me);
 }
@@ -211,6 +228,8 @@ export type NewEventInput = {
   category: string;
   description?: string;
   durationMin?: number;
+  /** false = guests of this hostel only */
+  openToAll?: boolean;
 };
 
 const CATEGORY_STYLE: Record<string, { emoji: string; cover: [string, string] }> = {
@@ -249,10 +268,10 @@ export function createHostelEvent(
     .prepare(
       `INSERT INTO events (city, hostel_id, title, description, starts_at, duration_min, price_cents,
         source, category, emoji, cover_from, cover_to, venue, walk_minutes, tags, lens, created_by,
-        origin, created_at)
+        origin, created_at, open_to_all)
        VALUES ((SELECT city FROM hostels WHERE id = @hostel_id), @hostel_id, @title, @description,
         @starts_at, @duration_min, @price_cents, 'hostel', @category, @emoji, @cover_from, @cover_to,
-        @venue, 0, @tags, '[]', @created_by, 'hostel', datetime('now'))`
+        @venue, 0, @tags, '[]', @created_by, 'hostel', datetime('now'), @open_to_all)`
     )
     .run({
       hostel_id: hostel.id,
@@ -270,6 +289,7 @@ export function createHostelEvent(
       venue: `${hostel.name} · your hostel`,
       tags: JSON.stringify(input.priceCents === 0 ? ["solo", "social", "free"] : ["solo", "social"]),
       created_by: me ? `staff:${me}` : "hostel-staff",
+      open_to_all: input.openToAll === false ? 0 : 1,
     });
 
   return info.lastInsertRowid;
