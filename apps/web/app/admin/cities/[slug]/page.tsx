@@ -7,7 +7,8 @@ import {
 } from "@/app/actions/cities";
 import { requireAdmin } from "@/lib/auth";
 import { CITY_STATUS, LAUNCH_BAR, launchGates, launchReadiness } from "@/lib/cities";
-import { getCity, getCityHostels, getCitySupply } from "@/lib/queries";
+import { approvePartnerAction, rejectPartnerAction } from "@/app/actions/partners";
+import { getCity, getCityApplications, getCityHostels, getCitySupply } from "@/lib/queries";
 import { formatDay, formatShortDate, timeOf } from "@/lib/time";
 import { plural } from "@/lib/format";
 
@@ -21,6 +22,8 @@ type Props = {
     moved?: string;
     launch?: string;
     saved?: string;
+    approved?: string;
+    rejected?: string;
     error?: string;
   }>;
 };
@@ -33,7 +36,7 @@ export async function generateMetadata({ params }: Props) {
 export default async function CityConsolePage({ params, searchParams }: Props) {
   const { slug } = await params;
   await requireAdmin(`/admin/cities/${slug}`);
-  const { created, blocked, moved, launch, saved, error } = await searchParams;
+  const { created, blocked, moved, launch, saved, approved, rejected, error } = await searchParams;
 
   const city = getCity(slug);
   if (!city) notFound();
@@ -42,6 +45,7 @@ export default async function CityConsolePage({ params, searchParams }: Props) {
   const gates = launchGates(city, supply);
   const readiness = launchReadiness(gates);
   const hostels = getCityHostels(city.slug);
+  const applications = getCityApplications(city.slug);
   const status = CITY_STATUS[city.status];
   const blockingGate = blocked ? gates.find((g) => g.key === blocked) : undefined;
 
@@ -128,6 +132,33 @@ export default async function CityConsolePage({ params, searchParams }: Props) {
             {blockingGate.hint} The gate is the point: a city that opens half-empty gets opened
             once, by a traveller who never comes back.
           </span>
+        </div>
+      ) : null}
+
+      {approved ? (
+        <div className="notice" role="status">
+          <span aria-hidden="true">✓</span>
+          <span>
+            <b>{approved} is on the map.</b> Approved, added to Explore, and given a bookable dorm —
+            their staff account can post from now on.
+          </span>
+        </div>
+      ) : null}
+
+      {rejected ? (
+        <div className="notice" role="alert">
+          <span aria-hidden="true">✕</span>
+          <span>
+            <b>{rejected} declined.</b> They keep their account and can see the decision at{" "}
+            <code>/partner</code>. Nothing else changes.
+          </span>
+        </div>
+      ) : null}
+
+      {error === "partner" ? (
+        <div className="notice warn" role="alert">
+          <span aria-hidden="true">⚠️</span>
+          <span>That application had already been decided.</span>
         </div>
       ) : null}
 
@@ -293,6 +324,52 @@ export default async function CityConsolePage({ params, searchParams }: Props) {
           ))}
         </div>
       </section>
+
+      {applications.length > 0 ? (
+        <section style={{ marginTop: 32 }}>
+          <div className="day">
+            <h2>Applications</h2>
+            <span>{plural(applications.length, "hostel")} waiting on you</span>
+          </div>
+          <div className="admin-list">
+            {applications.map((app) => (
+              <div key={app.id} className="admin-row" style={{ alignItems: "flex-start" }}>
+                <div className="admin-main">
+                  <b>
+                    {app.name} · {app.area}
+                  </b>
+                  <span>
+                    {plural(app.beds, "bed")} · from €{(app.price_from_cents / 100).toFixed(0)} a night ·{" "}
+                    applied {app.applied_at ? formatDay(app.applied_at.slice(0, 10)) : "just now"}
+                  </span>
+                  <span>{app.description}</span>
+                  {app.note ? <span style={{ fontStyle: "italic" }}>“{app.note}”</span> : null}
+                  <span style={{ fontSize: 10.5, color: "#a5978c" }}>{app.contact_email}</span>
+                </div>
+                <div className="admin-actions">
+                  <form action={approvePartnerAction}>
+                    <input type="hidden" name="hostelId" value={app.id} />
+                    <button type="submit" className="btn small primary">
+                      Approve
+                    </button>
+                  </form>
+                  <form action={rejectPartnerAction}>
+                    <input type="hidden" name="hostelId" value={app.id} />
+                    <button type="submit" className="btn small danger">
+                      Decline
+                    </button>
+                  </form>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p style={{ fontSize: 11.5, color: "#8b7d72", marginTop: 12, lineHeight: 1.6 }}>
+            Approving puts the hostel in Explore and on the city page, gives it a bookable dorm, and
+            lets its staff post from today. It does not change the city&apos;s launch state — that is
+            the bar above.
+          </p>
+        </section>
+      ) : null}
 
       <section style={{ marginTop: 32 }}>
         <div className="day">

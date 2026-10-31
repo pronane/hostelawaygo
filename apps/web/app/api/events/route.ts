@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { getCurrentUser, isStaff } from "@/lib/auth";
+import { getCurrentUser, isActiveStaff } from "@/lib/auth";
 import { createHostelEvent, getHostels } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -10,8 +10,11 @@ const CATEGORIES = new Set(["food", "music", "social", "outdoors", "culture", "n
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Sign in first" }, { status: 401 });
-  if (!isStaff(user)) {
-    return NextResponse.json({ error: "Only hostel staff can post events" }, { status: 403 });
+  if (!isActiveStaff(user)) {
+    return NextResponse.json(
+      { error: "Only approved hostel staff can post events" },
+      { status: 403 }
+    );
   }
 
   let body: Record<string, unknown>;

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { cancelEventAction, clearReportAction, hideMessageAction } from "@/app/actions/staff";
-import { requireStaff } from "@/lib/auth";
+import { requireActiveStaff } from "@/lib/auth";
 import {
   getBookingsForHostel,
   getHostels,
@@ -21,7 +21,7 @@ export default async function HostelAdminPage({
   searchParams: Promise<{ cancelled?: string; hidden?: string; error?: string }>;
 }) {
   const { cancelled, hidden, error } = await searchParams;
-  const user = await requireStaff("/hostel-admin");
+  const user = await requireActiveStaff("/hostel-admin");
 
   const hostels = getHostels();
   const hostel = (user.hostel_id ? hostels.find((h) => h.id === user.hostel_id) : hostels[0])!;

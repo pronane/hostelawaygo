@@ -66,6 +66,18 @@ export const ACCOUNTS = [
     demoBlurb: "Front desk at Home Lisbon Hostel",
   },
   {
+    email: "rita@casadosol.pt",
+    password: "away1234",
+    name: "Rita Alves",
+    role: "hostel_staff",
+    hostelSlug: "casa-do-sol",
+    travellerIndex: null as number | null,
+    flag: "🇵🇹",
+    colour: "#F7D9C4",
+    languages: "Portuguese, English",
+    demoBlurb: "Applied to join — still pending (Porto)",
+  },
+  {
     email: "ops@away.app",
     password: "away1234",
     name: "Away Ops",

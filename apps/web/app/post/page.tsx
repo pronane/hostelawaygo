@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { EventCard } from "@/components/event-card";
 import { PostForm } from "@/components/post-form";
-import { requireStaff } from "@/lib/auth";
+import { requireActiveStaff } from "@/lib/auth";
 import { getHostelPosts, getHostels, getTravellerCount } from "@/lib/queries";
 import { plural } from "@/lib/format";
 
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Post tonight" };
 
 export default async function PostPage() {
-  const user = await requireStaff("/post");
+  const user = await requireActiveStaff("/post");
   const hostels = getHostels();
   const hostel = (user.hostel_id ? hostels.find((h) => h.id === user.hostel_id) : hostels[0])!;
   // The audience promise is made per city, not per database.

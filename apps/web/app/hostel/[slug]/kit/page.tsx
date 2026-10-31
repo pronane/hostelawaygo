@@ -34,6 +34,8 @@ export default async function PartnerKitPage({ params }: Props) {
   if (!isStaff(user)) redirect("/?denied=staff");
   // Staff can only see their own hostel's kit; ops can see any.
   if (user.role !== "admin" && user.hostel_id !== hostel.id) redirect("/?denied=staff");
+  // A QR code for a hostel that isn't on the map yet sends guests nowhere.
+  if (hostel.status !== "active" && user.role !== "admin") redirect("/partner?pending=1");
 
   const base = appUrl();
   const stayUrl = `${base}/stay/${hostel.slug}`;
