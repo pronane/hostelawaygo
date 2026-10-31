@@ -128,9 +128,9 @@ export const EVENTS: SeedEvent[] = [
     title: "Family dinner: Mozambican curry",
     description:
       "The one that started it all. Cooked by staff, eaten at one long table, phones face down. Turn up at 19:25 and sit next to somebody you don't know — that is the whole point. Vegetarian pot on the left.",
-    venue: "Home Lisbon Hostel · your hostel",
+    venue: "Home Lisbon Hostel",
     tags: ["solo", "food", "early", "social"],
-    lens: ["You're in this building — 0 min", "Done by 21:00, plenty of night left"],
+    lens: ["You're in this building", "Done by 21:00, plenty of night left"],
   },
   {
     key: "lis-roof", city: "lisbon", hostel: "Sunset Destination Hostel", dayOffset: 0, time: "21:00",
@@ -139,9 +139,9 @@ export const EVENTS: SeedEvent[] = [
     title: "Sunset sangria on the roof terrace",
     description:
       "Rooftop above the river, a jug of sangria, and someone will have a guitar out by half past. Open to guests from any hostel — €8 gets you a jug and one of the better sunsets in the city.",
-    venue: "Sunset Destination Hostel · 6 min walk",
+    venue: "Sunset Destination Hostel",
     tags: ["solo", "music", "early", "social"],
-    lens: ["6 min walk from your bed", "Ends ~23:00 — metro still running"],
+    lens: ["From your bed", "Ends ~23:00 — metro still running"],
   },
   {
     key: "lis-crawl", city: "lisbon", hostel: "Yes! Lisbon Hostel", dayOffset: 0, time: "22:30",
@@ -150,9 +150,9 @@ export const EVENTS: SeedEvent[] = [
     title: "Pub crawl: Bairro Alto → Cais do Sodré",
     description:
       "Four bars, one welcome shot, and about twenty people who also don't know anyone yet. The classic. Bring ID, cash for the bars, and shoes you can actually walk in — the streets are steep and the pavements are slippery.",
-    venue: "Yes! Lisbon Hostel · 9 min walk",
+    venue: "Yes! Lisbon Hostel",
     tags: ["solo", "nightlife", "music"],
-    lens: ["9 min walk, group meets in reception", "Finishes late — no last metro, share a taxi"],
+    lens: ["Group meets in reception", "Finishes late — no last metro, share a taxi"],
   },
   {
     key: "lis-fado", city: "lisbon", dayOffset: 0, time: "23:00",
@@ -161,9 +161,9 @@ export const EVENTS: SeedEvent[] = [
     title: "Fado na rua — Alfama street sessions",
     description:
       "Neighbours pull chairs onto the pavement and sing until somebody complains. Genuinely one of the best free things in this city. Quiet, respectful, no filming and no talking through a verse.",
-    venue: "Rua dos Remédios, Alfama · 14 min walk",
+    venue: "Rua dos Remédios, Alfama",
     tags: ["free", "music", "culture", "early"],
-    lens: ["Locals' night, not a tourist show", "14 min walk, or 6 min by tram"],
+    lens: ["Locals' night, not a tourist show", "6 min by tram"],
   },
 
   {
@@ -173,7 +173,7 @@ export const EVENTS: SeedEvent[] = [
     title: "Free walking tour: Baixa & Mouraria",
     description:
       "Three hours, tips-based, and where half the hostel ends up meeting each other. Show up five minutes early — the queue gets long and they cap the group at thirty.",
-    venue: "Praça do Comércio · 18 min walk",
+    venue: "Praça do Comércio",
     tags: ["free", "solo", "outdoors", "culture"],
     lens: ["Tip-based — budget €10", "Outdoors, wear actual shoes"],
   },
@@ -184,7 +184,7 @@ export const EVENTS: SeedEvent[] = [
     title: "Beer Olympics",
     description:
       "Teams of four, drawn on the night, so you don't need to bring anyone. Winner takes the bar tab, losers take the washing-up. Extremely stupid, extremely good way to meet twelve people in twenty minutes.",
-    venue: "Home Lisbon Hostel · your hostel",
+    venue: "Home Lisbon Hostel",
     tags: ["free", "solo", "social", "early"],
     lens: ["Teams drawn on the night — come alone", "Done by 22:30"],
   },
@@ -195,7 +195,7 @@ export const EVENTS: SeedEvent[] = [
     title: "Live jazz + €3 vinho verde",
     description:
       "Tiny room, proper players, tiny prices. Posted by another traveller staying at Yes! Lisbon — she's walking over at 21:15 and happy to take anyone with her. Look for the green tote bag.",
-    venue: "Clube de Fado, Graça · 12 min walk",
+    venue: "Clube de Fado, Graça",
     tags: ["music", "early", "culture"],
     lens: ["Posted by a traveller, not a promoter", "Ends 23:30 — walkable home"],
   },
@@ -207,9 +207,9 @@ export const EVENTS: SeedEvent[] = [
     title: "Sunset kayak on the Tagus",
     description:
       "Two hours on the water as the light goes orange behind the bridge. Beginner-friendly, all gear included, you will get wet. Only a couple of spots left for this one.",
-    venue: "Doca de Santo Amaro · 25 min walk",
+    venue: "Doca de Santo Amaro",
     tags: ["outdoors", "solo"],
-    lens: ["25 min walk — or the 15E tram", "Book ahead, this sells out"],
+    lens: ["The 15E tram", "Book ahead, this sells out"],
   },
   {
     key: "lis-museum", city: "lisbon", dayOffset: 2, time: "11:00",
@@ -218,9 +218,9 @@ export const EVENTS: SeedEvent[] = [
     title: "LX Factory makers' market",
     description:
       "Old print works turned row of studios, food stalls and questionable vintage. Free to wander, easy to lose three hours, good coffee. Take the tram or it's a long walk in the heat.",
-    venue: "LX Factory, Alcântara · 30 min walk",
+    venue: "LX Factory, Alcântara",
     tags: ["free", "culture", "food", "outdoors"],
-    lens: ["Free to wander, cash for stalls", "30 min walk — take the 15E"],
+    lens: ["Free to wander, cash for stalls", "Take the 15E"],
   },
   {
     key: "lis-club", city: "lisbon", dayOffset: 2, time: "23:30",
@@ -229,9 +229,9 @@ export const EVENTS: SeedEvent[] = [
     title: "Clubbing: Ministerium",
     description:
       "The big room on the waterfront, doors at midnight, sunrise finish. €15 before 1am. Go with the group from the pub crawl or don't go — the walk back alone at 5am is not the fun part.",
-    venue: "Ministerium Club, Cais do Sodré · 16 min walk",
+    venue: "Ministerium Club, Cais do Sodré",
     tags: ["nightlife", "music"],
-    lens: ["16 min walk, or share a taxi back", "Doors 00:00 — no last metro after"],
+    lens: ["Share a taxi back", "Doors 00:00 — no last metro after"],
   },
 
   {
@@ -241,9 +241,9 @@ export const EVENTS: SeedEvent[] = [
     title: "Cooking class: pastéis de nata",
     description:
       "Twelve people, one kitchen, far too much cinnamon. You make them, you eat them warm, you take the recipe home and never make them again. €15 covers ingredients.",
-    venue: "Home Lisbon Hostel kitchen · your hostel",
+    venue: "Home Lisbon Hostel kitchen",
     tags: ["food", "social", "early"],
-    lens: ["You're in this building — 0 min", "Two hours, no experience needed"],
+    lens: ["You're in this building", "Two hours, no experience needed"],
   },
   {
     key: "lis-miradouro", city: "lisbon", dayOffset: 3, time: "19:00",
@@ -252,7 +252,7 @@ export const EVENTS: SeedEvent[] = [
     title: "Sunset walk to Senhora do Monte",
     description:
       "Someone from Lost Inn posted this: meet at the hostel at 18:40, walk up through Graça, watch the light go, come back down for cheap dinner. Free, low effort, excellent company.",
-    venue: "Miradouro da Senhora do Monte · 22 min walk",
+    venue: "Miradouro da Senhora do Monte",
     tags: ["free", "outdoors", "solo", "early"],
     lens: ["Posted by a traveller at Lost Inn", "Free — bring a beer from the shop"],
   },
@@ -265,7 +265,7 @@ export const EVENTS: SeedEvent[] = [
     title: "Porto wine cellar crawl, Gaia",
     description:
       "Three cellars, three tastings, and the bridge walk at golden hour in between. Starts at 18:30 because that's when the last tours go out — and yes, there is a port for people who 'don't like port'.",
-    venue: "Vila Nova de Gaia · 20 min walk",
+    venue: "Vila Nova de Gaia",
     tags: ["food", "solo", "social"],
     lens: ["You land 14:20 — plenty of time", "Ends 21:30, walkable back"],
   },
@@ -276,9 +276,9 @@ export const EVENTS: SeedEvent[] = [
     title: "Francesinha crawl (it's a sandwich, sort of)",
     description:
       "Two of the city's better versions, one plate between two, and a leaderboard nobody asked for. €14 covers both and one drink. Vegetarian option if you ask at the bar.",
-    venue: "Rua de Santa Catarina · 7 min walk",
+    venue: "Rua de Santa Catarina",
     tags: ["food", "social", "early"],
-    lens: ["7 min walk from your hostel", "Ends by 23:30"],
+    lens: ["From your hostel", "Ends by 23:30"],
   },
   {
     key: "por-ribeira", city: "porto", dayOffset: 13, time: "10:00",
@@ -287,7 +287,7 @@ export const EVENTS: SeedEvent[] = [
     title: "Free walking tour: Ribeira & the bridges",
     description:
       "The one to do on day one in Porto. Two and a bit hours, tips-based, ends with the postcard view from the Gaia side. Arrive ten minutes early or you'll be in the second group.",
-    venue: "Praça da Ribeira · 12 min walk",
+    venue: "Praça da Ribeira",
     tags: ["free", "solo", "outdoors", "culture"],
     lens: ["Tip-based — budget €10", "Ends near the port cellars — useful"],
   },
@@ -298,9 +298,9 @@ export const EVENTS: SeedEvent[] = [
     title: "Port tasting + cheese, Ramos Pinto",
     description:
       "The museum tour first, then five ports and a plate of things that go with them. Smaller and calmer than the big names on the front. Book online, it's usually full by the day before.",
-    venue: "Ramos Pinto, Gaia · 22 min walk",
+    venue: "Ramos Pinto, Gaia",
     tags: ["food", "culture"],
-    lens: ["22 min walk, or 3 min from the bridge", "Book ahead — fills the day before"],
+    lens: ["3 min from the bridge", "Book ahead — fills the day before"],
   },
   {
     key: "por-samba", city: "porto", dayOffset: 13, time: "21:00",
@@ -309,9 +309,9 @@ export const EVENTS: SeedEvent[] = [
     title: "Live samba at Maus Hábitos",
     description:
       "Art space turned bar on the fourth floor of a car park, which sounds wrong and is completely right. Samba until late, €10 at the door. The kind of night people plan a trip around.",
-    venue: "Maus Hábitos, Rua Passos Manuel · 15 min walk",
+    venue: "Maus Hábitos, Rua Passos Manuel",
     tags: ["music", "nightlife"],
-    lens: ["15 min walk from your hostel", "Late — pre-book a taxi back"],
+    lens: ["From your hostel", "Late — pre-book a taxi back"],
   },
   {
     key: "por-douro", city: "porto", dayOffset: 14, time: "09:00",
@@ -320,7 +320,7 @@ export const EVENTS: SeedEvent[] = [
     title: "Day trip: Douro valley by train",
     description:
       "Train to Pinhão, two vineyards, back by 19:00. Posted by two travellers looking for two more to split a tasting and a taxi. The best thing you can do in a day from Porto.",
-    venue: "São Bento station · 10 min walk",
+    venue: "São Bento station",
     tags: ["outdoors", "food", "solo"],
     lens: ["4 of 5 going arrived solo", "Whole day — clear your calendar"],
   },
@@ -331,9 +331,9 @@ export const EVENTS: SeedEvent[] = [
     title: "Sunset at Jardim do Morro",
     description:
       "Cross the top deck of the bridge, sit on the grass, watch the city go orange. Free, five minutes from the hostel if you take the metro. Bring something to drink and don't bring a speaker.",
-    venue: "Jardim do Morro, Gaia · 18 min walk",
+    venue: "Jardim do Morro, Gaia",
     tags: ["free", "outdoors", "solo", "early"],
-    lens: ["Free — bring your own drink", "18 min walk over the top deck"],
+    lens: ["Free — bring your own drink", "Over the top deck"],
   },
   {
     key: "por-market", city: "porto", dayOffset: 15, time: "11:00",
@@ -342,9 +342,9 @@ export const EVENTS: SeedEvent[] = [
     title: "Flea market, Praça da Batalha",
     description:
       "Old cameras, tiles, and somebody selling their grandmother's records. Right by the station, so it's the obvious last stop before a bus. Cash only and everyone is negotiable.",
-    venue: "Praça da Batalha · 8 min walk",
+    venue: "Praça da Batalha",
     tags: ["free", "culture"],
-    lens: ["8 min walk from your hostel", "Cash only — and no ATM nearby"],
+    lens: ["From your hostel", "Cash only — and no ATM nearby"],
   },
   {
     key: "por-karaoke", city: "porto", hostel: "The Passenger Hostel", dayOffset: 16, time: "20:00",
@@ -353,8 +353,8 @@ export const EVENTS: SeedEvent[] = [
     title: "Karaoke night, The Passenger",
     description:
       "Happens the night after your bus leaves. Shown so you can see what you're missing — and re-plan if you feel like staying another day. It happens every week, it is always the same three songs.",
-    venue: "The Passenger Hostel, São Bento · 11 min walk",
+    venue: "The Passenger Hostel, São Bento",
     tags: ["free", "social", "solo"],
-    lens: ["Outside your dates", "11 min walk from your hostel"],
+    lens: ["Outside your dates", "From your hostel"],
   },
 ];

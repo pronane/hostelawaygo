@@ -71,9 +71,9 @@ export const EXTRA_EVENTS: SeedEvent[] = [
     title: "Pierogi night in the courtyard",
     description:
       "Four kinds of pierogi, one big table, and a rule that you cannot sit next to someone from your own country. Vegetarian half of the table is on the left.",
-    venue: "Greg & Tom Hostel · your hostel",
+    venue: "Greg & Tom Hostel",
     tags: ["free", "solo", "food", "social", "early"],
-    lens: ["You're in this building — 0 min", "Done by 21:00, crawl starts at 21:30"],
+    lens: ["You're in this building", "Done by 21:00, crawl starts at 21:30"],
   },
   {
     key: "krak-vodka", city: "krakow", hostel: "Greg & Tom Hostel", dayOffset: 0, time: "21:30",
@@ -82,7 +82,7 @@ export const EXTRA_EVENTS: SeedEvent[] = [
     title: "Vodka tasting, then the old town crawl",
     description:
       "Six shots you cannot pronounce, a guide who can, then four bars around the main square. €12 covers the tasting. The crawl is free once you're in it.",
-    venue: "Greg & Tom Hostel · 5 min walk",
+    venue: "Greg & Tom Hostel",
     tags: ["solo", "nightlife", "social"],
     lens: ["Meet in reception at 21:20", "Finishes late — walkable, no taxi needed"],
   },
@@ -93,7 +93,7 @@ export const EXTRA_EVENTS: SeedEvent[] = [
     title: "Free walking tour: Old Town to Kazimierz",
     description:
       "The best three hours you can spend on your first morning here. Tips-based, ends in Kazimierz with the good zapiekanka place pointed out.",
-    venue: "Rynek Główny, by the clock tower · 12 min walk",
+    venue: "Rynek Główny, by the clock tower",
     tags: ["free", "solo", "outdoors", "culture"],
     lens: ["Tip-based — budget 20 zł", "Ends near lunch, deliberately"],
   },
@@ -104,7 +104,7 @@ export const EXTRA_EVENTS: SeedEvent[] = [
     title: "Live jazz in a cellar, Kazimierz",
     description:
       "Posted by two people from Mosquito. Tiny brick room, no stage, three players and whoever turns up. €6 at the door, cash.",
-    venue: "U Muniaka, Kazimierz · 14 min walk",
+    venue: "U Muniaka, Kazimierz",
     tags: ["music", "early", "culture", "solo"],
     lens: ["Posted by a traveller at Mosquito", "Ends 22:00 — easy walk back"],
   },
@@ -115,9 +115,9 @@ export const EXTRA_EVENTS: SeedEvent[] = [
     title: "Day trip: Wieliczka salt mine",
     description:
       "Half a kilometre underground, chapels carved out of salt, and 800 steps. The early bus is the only way to do it without the crowds. €28 covers entry and the train.",
-    venue: "Kraków Główny station · 18 min walk",
+    venue: "Kraków Główny station",
     tags: ["outdoors", "culture"],
-    lens: ["18 min walk to the station, then 20 min train", "Back around 16:00 — the whole day"],
+    lens: ["To the station, then 20 min train", "Back around 16:00 — the whole day"],
   },
 ];
 

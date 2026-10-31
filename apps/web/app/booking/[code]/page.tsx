@@ -1,33 +1,48 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { cancelBookingAction, payBookingAction } from "@/app/actions/booking";
+import {
+  cancelBookingAction,
+  payBookingAction,
+  refreshPaymentAction,
+} from "@/app/actions/booking";
 import { getCurrentUser } from "@/lib/auth";
 import { getBookingByCode } from "@/lib/queries";
+import { expireStalePayments, stripeConfigured } from "@/lib/payments";
 import { formatDay } from "@/lib/time";
-import { formatPrice, plural } from "@/lib/format";
+import { formatPrice, formatPriceRange, plural } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Your booking" };
+
+const PAYMENT_NOTES: Record<string, string> = {
+  cancelled: "Payment cancelled — the bed is held until the window runs out.",
+  failed: "The payment provider didn't accept that. Try again, or cancel the booking.",
+};
 
 export default async function BookingPage({
   params,
   searchParams,
 }: {
   params: Promise<{ code: string }>;
-  searchParams: Promise<{ paid?: string }>;
+  searchParams: Promise<{ paid?: string; payment?: string }>;
 }) {
   const { code } = await params;
-  const { paid } = await searchParams;
+  const { paid, payment: paymentIssue } = await searchParams;
 
   const user = await getCurrentUser();
   if (!user) notFound();
 
+  expireStalePayments();
   const booking = getBookingByCode(code);
   if (!booking) notFound();
   if (booking.traveller_id !== user.id && user.role !== "admin") notFound();
 
   const isPending = booking.status === "pending";
   const cancelled = booking.status === "cancelled";
+  const paidInFull = booking.payment_status === "paid";
+  const refunded = booking.payment_status === "refunded";
+  const expired = booking.payment_status === "expired";
+  const sandbox = (booking.payment_provider ?? "sandbox") === "sandbox" && !stripeConfigured();
 
   return (
     <div style={{ maxWidth: 640 }}>
@@ -44,9 +59,29 @@ export default async function BookingPage({
         </div>
       ) : null}
 
+      {paymentIssue && PAYMENT_NOTES[paymentIssue] ? (
+        <div className="notice warn" role="status">
+          <span aria-hidden="true">💳</span>
+          <span>{PAYMENT_NOTES[paymentIssue]}</span>
+        </div>
+      ) : null}
+
+      {refunded ? (
+        <div className="notice" role="status">
+          <span aria-hidden="true">↩︎</span>
+          <span>
+            <b>Refunded.</b>{" "}
+            {`${formatPrice(booking.total_cents)} went back to the original payment method${
+              booking.refunded_at ? ` on ${formatDay(booking.refunded_at.slice(0, 10))}` : ""
+            }.`}
+          </span>
+        </div>
+      ) : null}
+
       <div className="booking-hero">
         <div className="eyebrow">
-          Booking {booking.code} · {cancelled ? "cancelled" : isPending ? "awaiting payment" : "confirmed"}
+          Booking {booking.code} ·{" "}
+          {cancelled ? "cancelled" : isPending ? "awaiting payment" : "confirmed"}
         </div>
         <h1 className="page-title">{booking.hostel_name}</h1>
         <p className="page-sub">
@@ -73,26 +108,40 @@ export default async function BookingPage({
         </div>
         <div className="receipt-row total">
           <span>Total</span>
-          <b>{formatPrice(booking.total_cents)}</b>
+          <b>{formatPriceRange(booking.total_cents, null)}</b>
         </div>
         <div className="receipt-row">
           <span>Payment</span>
           <b>
-            {booking.payment_status === "paid"
-              ? `Paid · ${booking.payment_reference}`
-              : cancelled
-                ? "Refunded"
-                : "Not paid yet"}
+            {refunded
+              ? `Refunded · ${booking.payment_reference}`
+              : paidInFull
+                ? `Paid · ${booking.payment_reference}`
+                : expired
+                  ? "Window expired"
+                  : cancelled
+                    ? "Nothing charged"
+                    : `Not paid yet · ${booking.payment_provider ?? "sandbox"}`}
           </b>
         </div>
       </div>
 
       <div className="cta-row">
-        {isPending ? (
+        {isPending && !expired ? (
           <form action={payBookingAction} style={{ flex: 1, display: "flex" }}>
             <input type="hidden" name="code" value={booking.code} />
             <button type="submit" className="btn primary">
-              Pay {formatPrice(booking.total_cents)} (sandbox)
+              Pay {formatPrice(booking.total_cents)}
+              {sandbox ? " (sandbox)" : ""}
+            </button>
+          </form>
+        ) : null}
+
+        {isPending && expired ? (
+          <form action={refreshPaymentAction} style={{ flex: 1, display: "flex" }}>
+            <input type="hidden" name="code" value={booking.code} />
+            <button type="submit" className="btn primary">
+              Reopen payment window
             </button>
           </form>
         ) : null}
@@ -114,9 +163,20 @@ export default async function BookingPage({
 
       <p style={{ fontSize: 11.5, color: "#8b7d72", marginTop: 22, lineHeight: 1.6 }}>
         {plural(booking.nights, "night")} in {booking.room_name.toLowerCase()} for{" "}
-        {plural(booking.guests, "guest")}. No card is charged — the payment row moves from{" "}
-        <code>requires_payment</code> to <code>paid</code> and the booking from{" "}
-        <code>pending</code> to <code>confirmed</code>. Same shape as Stripe, without the keys.
+        {plural(booking.guests, "guest")}.{" "}
+        {sandbox ? (
+          <>
+            No card is charged: this deployment runs the <code>sandbox</code> provider, which settles
+            the payment in-process. The same rows — idempotency key, 30-minute window,{" "}
+            <code>requires_payment → paid → refunded</code> — are what a live Stripe Checkout
+            session writes back through <code>/api/payments/webhook</code>.
+          </>
+        ) : (
+          <>
+            Payments are handled by the configured provider and confirmed by a signed webhook call
+            to <code>/api/payments/webhook</code> — a retried delivery can&apos;t double-charge.
+          </>
+        )}
       </p>
     </div>
   );

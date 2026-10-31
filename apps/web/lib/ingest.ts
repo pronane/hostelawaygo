@@ -7,6 +7,7 @@ import {
   type IngestedEvent,
 } from "./queries";
 import { addDays, todayISO } from "./time";
+import { coordsForVenue, CITY_CENTRE } from "./geo";
 
 type TmEvent = {
   id?: string;
@@ -17,8 +18,15 @@ type TmEvent = {
   dates?: {
     start?: { localDate?: string; localTime?: string; dateTime?: string; dayOffset?: number };
   };
-  priceRanges?: { min?: number; currency?: string }[];
-  _embedded?: { venues?: { name?: string; city?: { name?: string } }[] };
+  url?: string;
+  priceRanges?: { type?: string; min?: number; max?: number; currency?: string }[];
+  _embedded?: {
+    venues?: {
+      name?: string;
+      city?: { name?: string };
+      location?: { latitude?: string; longitude?: string };
+    }[];
+  };
   classifications?: { segment?: { name?: string }; genre?: { name?: string } }[];
 };
 
@@ -81,9 +89,25 @@ function toIngested(raw: TmEvent): IngestedEvent | null {
   const start = raw.dates?.start;
   const date = start?.localDate ?? addDays(todayISO(), start?.dayOffset ?? 0);
   const time = (start?.localTime ?? "20:00:00").slice(0, 5);
-  const venue = raw._embedded?.venues?.[0]?.name ?? "Venue TBC";
-  const price = raw.priceRanges?.[0]?.min;
+  const venueInfo = raw._embedded?.venues?.[0];
+  const venue = venueInfo?.name ?? "Venue TBC";
   const style = styleFor(raw);
+
+  // Ticketmaster gives one range per ticket type; keep the real floor and ceiling.
+  const ranges = (raw.priceRanges ?? []).filter(
+    (range) => typeof range.min === "number" || typeof range.max === "number"
+  );
+  const lowest = ranges.length ? Math.min(...ranges.map((r) => r.min ?? r.max ?? 0)) : null;
+  const highest = ranges.length ? Math.max(...ranges.map((r) => r.max ?? r.min ?? 0)) : null;
+  const currency = ranges[0]?.currency ?? "EUR";
+
+  const lat = Number(venueInfo?.location?.latitude);
+  const lng = Number(venueInfo?.location?.longitude);
+  const centre = coordsForVenue(venue, city, CITY_CENTRE[city] ?? null);
+  const point =
+    Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0
+      ? { lat, lng }
+      : centre;
 
   return {
     city,
@@ -94,7 +118,12 @@ function toIngested(raw: TmEvent): IngestedEvent | null {
       `Imported from Ticketmaster. Check the venue's own page for doors, support acts and any changes.`,
     startsAt: `${date}T${time}`,
     durationMin: 150,
-    priceCents: price ? Math.round(price * 100) : 0,
+    priceCents: lowest ? Math.round(lowest * 100) : 0,
+    priceMaxCents: highest ? Math.round(highest * 100) : null,
+    currency,
+    ticketUrl: raw.url ?? null,
+    lat: point.lat,
+    lng: point.lng,
     venue,
     category: style.category,
     emoji: style.emoji,

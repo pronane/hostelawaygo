@@ -535,3 +535,6 @@ input, select, textarea { font-family: inherit; }
   .mobile-tabs a { font-size: 8.5px; letter-spacing: .03em; }
   .mobile-tabs a .tic { font-size: 16px; }
 }
+
+/* live chat indicator */
+.live.off { background: #c8b8ae; box-shadow: none; animation: none; }

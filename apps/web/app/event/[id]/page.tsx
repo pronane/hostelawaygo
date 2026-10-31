@@ -2,13 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { JoinButton } from "@/components/join-button";
 import { ShareButton } from "@/components/share-button";
-import { ChatRefresh } from "@/components/chat-refresh";
+import { ChatLive } from "@/components/chat-live";
 import { getCurrentUser } from "@/lib/auth";
 import { getEvent, getMessages, getWhoIsGoing } from "@/lib/queries";
-import { formatPrice, plural } from "@/lib/format";
+import { formatPriceRange, plural, walkLabel } from "@/lib/format";
 import { endTime, formatDay, formatSqlTime, timeOf } from "@/lib/time";
 import { CITIES, type CitySlug } from "@/lib/constants";
-import { sendMessageAction, reportMessageAction } from "@/app/actions/chat";
 
 export const dynamic = "force-dynamic";
 
@@ -110,7 +109,7 @@ export default async function EventPage({ params, searchParams }: Props) {
         <span className="dot-sep" />
         <span className="m">📍 {venueName}</span>
         <span className="dot-sep" />
-        <span className="m">{formatPrice(event.price_cents)}</span>
+        <span className="m">{formatPriceRange(event.price_cents, event.price_max_cents, event.currency)}</span>
       </div>
 
       <div className="lens">
@@ -124,7 +123,7 @@ export default async function EventPage({ params, searchParams }: Props) {
           ))}
           <li>
             <i aria-hidden="true">✓</i>
-            <span>{event.walk_minutes} min walk from your bed</span>
+            <span>{walkLabel(event.walk_minutes, event.walkFrom)}</span>
           </li>
         </ul>
       </div>
@@ -158,81 +157,28 @@ export default async function EventPage({ params, searchParams }: Props) {
         <a className="btn" href={mapsUrl} target="_blank" rel="noreferrer">
           Directions
         </a>
+        {event.ticket_url ? (
+          <a className="btn" href={event.ticket_url} target="_blank" rel="noreferrer">
+            Get tickets ↗
+          </a>
+        ) : null}
         <ShareButton title={event.title} />
       </div>
 
       <section id="chat" className="chat">
-        <div className="chat-head">
-          <div className="panel-head" style={{ margin: 0 }}>
-            Event chat · {plural(messages.length, "message")}
-          </div>
-          <span className="chat-live">
-            <span className="live" /> updates every 20s
-          </span>
-        </div>
-
         {chat && CHAT_NOTES[chat] ? (
-          <div className="notice warn" role="status" style={{ margin: "10px 0 0" }}>
+          <div className="notice warn" role="status" style={{ margin: "0 0 12px" }}>
             <span aria-hidden="true">💬</span>
             <span>{CHAT_NOTES[chat]}</span>
           </div>
         ) : null}
 
-        <div className="chat-list">
-          {messages.length === 0 ? (
-            <p style={{ fontSize: 12.5, color: "#8b7d72", margin: 0 }}>
-              No messages yet. Ask the question everyone else is too shy to ask.
-            </p>
-          ) : (
-            messages.map((m) => (
-              <div key={m.id} className={`msg${m.mine ? " mine" : ""}`}>
-                <span className="av" style={{ background: m.colour }} aria-hidden="true">
-                  {m.initials}
-                </span>
-                <div className="msg-body">
-                  <div className="msg-top">
-                    <b>
-                      {m.mine ? "You" : m.name} <span aria-hidden="true">{m.flag}</span>
-                    </b>
-                    <span>{formatSqlTime(m.created_at)}</span>
-                    {m.reported ? <span className="msg-flag">reported</span> : null}
-                  </div>
-                  <p>{m.body}</p>
-                  {!m.mine && user ? (
-                    <form action={reportMessageAction} className="msg-report">
-                      <input type="hidden" name="messageId" value={m.id} />
-                      <input type="hidden" name="eventId" value={event.id} />
-                      <button type="submit">Report</button>
-                    </form>
-                  ) : null}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        {user ? (
-          <form action={sendMessageAction} className="chat-form">
-            <input type="hidden" name="eventId" value={event.id} />
-            <input
-              name="body"
-              placeholder="Anyone going from Home Lisbon? Walking over at 19:00."
-              maxLength={500}
-              required
-              aria-label="Message"
-            />
-            <button type="submit" className="btn primary">
-              Send
-            </button>
-          </form>
-        ) : (
-          <div className="chat-signin">
-            <span>Sign in to join the conversation.</span>
-            <Link href={`/login?next=${encodeURIComponent(`/event/${event.id}`)}`} className="btn small">
-              Sign in
-            </Link>
-          </div>
-        )}
+        <ChatLive
+          eventId={event.id}
+          initial={messages}
+          signedIn={Boolean(user)}
+          placeholder="Anyone going from Home Lisbon? Walking over at 19:00."
+        />
       </section>
 
       <section className="whos">
@@ -272,7 +218,6 @@ export default async function EventPage({ params, searchParams }: Props) {
         from the database.
       </p>
 
-      <ChatRefresh />
     </article>
   );
 }

@@ -6,55 +6,265 @@
         "id": "tm-lis-jazz",
         "name": "Lisboa Jazz Sessions",
         "description": "Three sets, one small room, and the cheapest serious jazz in the city. Doors 20:30.",
-        "dates": { "start": { "dayOffset": 2, "localTime": "21:00:00" } },
-        "priceRanges": [{ "min": 15, "currency": "EUR" }],
-        "_embedded": { "venues": [{ "name": "Hot Clube de Portugal", "city": { "name": "Lisbon" } }] },
-        "classifications": [{ "segment": { "name": "Music" }, "genre": { "name": "Jazz" } }]
+        "dates": {
+          "start": {
+            "dayOffset": 2,
+            "localTime": "21:00:00"
+          }
+        },
+        "priceRanges": [
+          {
+            "type": "standard",
+            "min": 15,
+            "max": 15,
+            "currency": "EUR"
+          },
+          {
+            "type": "resale",
+            "min": 15,
+            "max": 45,
+            "currency": "EUR"
+          }
+        ],
+        "_embedded": {
+          "venues": [
+            {
+              "name": "Hot Clube de Portugal",
+              "city": {
+                "name": "Lisbon"
+              },
+              "location": {
+                "latitude": "38.7167",
+                "longitude": "-9.1429"
+              }
+            }
+          ]
+        },
+        "classifications": [
+          {
+            "segment": {
+              "name": "Music"
+            },
+            "genre": {
+              "name": "Jazz"
+            }
+          }
+        ],
+        "url": "https://www.ticketmaster.pt/event/lisboa-jazz-sessions/1"
       },
       {
         "id": "tm-lis-fado",
         "name": "Fado no Castelo",
         "description": "Fado sung in the castle walls at sunset. Bring a jacket, the wind gets up.",
-        "dates": { "start": { "dayOffset": 1, "localTime": "19:00:00" } },
-        "priceRanges": [{ "min": 12, "currency": "EUR" }],
-        "_embedded": { "venues": [{ "name": "Castelo de São Jorge", "city": { "name": "Lisbon" } }] },
-        "classifications": [{ "segment": { "name": "Music" }, "genre": { "name": "Fado" } }]
+        "dates": {
+          "start": {
+            "dayOffset": 1,
+            "localTime": "19:00:00"
+          }
+        },
+        "priceRanges": [
+          {
+            "min": 12,
+            "currency": "EUR"
+          }
+        ],
+        "_embedded": {
+          "venues": [
+            {
+              "name": "Castelo de São Jorge",
+              "city": {
+                "name": "Lisbon"
+              },
+              "location": {
+                "latitude": "38.7139",
+                "longitude": "-9.1335"
+              }
+            }
+          ]
+        },
+        "classifications": [
+          {
+            "segment": {
+              "name": "Music"
+            },
+            "genre": {
+              "name": "Fado"
+            }
+          }
+        ],
+        "url": "https://www.ticketmaster.pt/event/fado-no-castelo/5"
       },
       {
         "id": "tm-lis-book",
         "name": "Feira do Livro de Lisboa",
         "description": "The book fair takes over Parque Eduardo VII for two weeks. Free entry, cash for the stalls.",
-        "dates": { "start": { "dayOffset": 5, "localTime": "10:00:00" } },
+        "dates": {
+          "start": {
+            "dayOffset": 5,
+            "localTime": "10:00:00"
+          }
+        },
         "priceRanges": [],
-        "_embedded": { "venues": [{ "name": "Parque Eduardo VII", "city": { "name": "Lisbon" } }] },
-        "classifications": [{ "segment": { "name": "Arts & Theatre" }, "genre": { "name": "Cultural" } }]
+        "_embedded": {
+          "venues": [
+            {
+              "name": "Parque Eduardo VII",
+              "city": {
+                "name": "Lisbon"
+              },
+              "location": {
+                "latitude": "38.7286",
+                "longitude": "-9.1536"
+              }
+            }
+          ]
+        },
+        "classifications": [
+          {
+            "segment": {
+              "name": "Arts & Theatre"
+            },
+            "genre": {
+              "name": "Cultural"
+            }
+          }
+        ]
       },
       {
         "id": "tm-por-blues",
         "name": "Porto Blues Festival",
         "description": "Two stages, six bands, and a bar that stays open later than the music does.",
-        "dates": { "start": { "dayOffset": 3, "localTime": "21:00:00" } },
-        "priceRanges": [{ "min": 18, "currency": "EUR" }],
-        "_embedded": { "venues": [{ "name": "Coliseu do Porto", "city": { "name": "Porto" } }] },
-        "classifications": [{ "segment": { "name": "Music" }, "genre": { "name": "Blues" } }]
+        "dates": {
+          "start": {
+            "dayOffset": 3,
+            "localTime": "21:00:00"
+          }
+        },
+        "priceRanges": [
+          {
+            "type": "standard",
+            "min": 18,
+            "max": 24,
+            "currency": "EUR"
+          },
+          {
+            "type": "premium",
+            "min": 24,
+            "max": 38,
+            "currency": "EUR"
+          }
+        ],
+        "_embedded": {
+          "venues": [
+            {
+              "name": "Coliseu do Porto",
+              "city": {
+                "name": "Porto"
+              },
+              "location": {
+                "latitude": "41.1465",
+                "longitude": "-8.6058"
+              }
+            }
+          ]
+        },
+        "classifications": [
+          {
+            "segment": {
+              "name": "Music"
+            },
+            "genre": {
+              "name": "Blues"
+            }
+          }
+        ],
+        "url": "https://www.ticketmaster.pt/event/porto-blues-festival/2"
       },
       {
         "id": "tm-por-photo",
         "name": "Porto Photo Biennial",
         "description": "Photography across four venues in the centre — one ticket covers all of them.",
-        "dates": { "start": { "dayOffset": 4, "localTime": "11:00:00" } },
-        "priceRanges": [{ "min": 7, "currency": "EUR" }],
-        "_embedded": { "venues": [{ "name": "Cordoaria", "city": { "name": "Porto" } }] },
-        "classifications": [{ "segment": { "name": "Arts & Theatre" }, "genre": { "name": "Fine Art" } }]
+        "dates": {
+          "start": {
+            "dayOffset": 4,
+            "localTime": "11:00:00"
+          }
+        },
+        "priceRanges": [
+          {
+            "min": 7,
+            "currency": "EUR"
+          }
+        ],
+        "_embedded": {
+          "venues": [
+            {
+              "name": "Cordoaria",
+              "city": {
+                "name": "Porto"
+              },
+              "location": {
+                "latitude": "41.1459",
+                "longitude": "-8.6149"
+              }
+            }
+          ]
+        },
+        "classifications": [
+          {
+            "segment": {
+              "name": "Arts & Theatre"
+            },
+            "genre": {
+              "name": "Fine Art"
+            }
+          }
+        ],
+        "url": "https://www.ticketmaster.pt/event/porto-photo-biennial/3"
       },
       {
         "id": "tm-krk-jazz",
         "name": "Kraków Jazz Autumn",
         "description": "The opening night of the autumn festival, in the ICE hall by the river.",
-        "dates": { "start": { "dayOffset": 2, "localTime": "19:30:00" } },
-        "priceRanges": [{ "min": 14, "currency": "EUR" }],
-        "_embedded": { "venues": [{ "name": "ICE Kraków", "city": { "name": "Krakow" } }] },
-        "classifications": [{ "segment": { "name": "Music" }, "genre": { "name": "Jazz" } }]
+        "dates": {
+          "start": {
+            "dayOffset": 2,
+            "localTime": "19:30:00"
+          }
+        },
+        "priceRanges": [
+          {
+            "type": "standard",
+            "min": 14,
+            "max": 29,
+            "currency": "EUR"
+          }
+        ],
+        "_embedded": {
+          "venues": [
+            {
+              "name": "ICE Kraków",
+              "city": {
+                "name": "Krakow"
+              },
+              "location": {
+                "latitude": "50.0478",
+                "longitude": "19.9312"
+              }
+            }
+          ]
+        },
+        "classifications": [
+          {
+            "segment": {
+              "name": "Music"
+            },
+            "genre": {
+              "name": "Jazz"
+            }
+          }
+        ],
+        "url": "https://www.ticketmaster.pl/event/krakow-jazz-autumn/4"
       }
     ]
   }

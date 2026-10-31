@@ -2,6 +2,8 @@ import { randomBytes } from "node:crypto";
 import { getDb } from "./db";
 import type { Source, WindowStatus } from "./constants";
 import { addDays, dateOf, diffDays, todayISO } from "./time";
+import { CITY_CENTRE, haversineMeters, walkMinutes } from "./geo";
+import { completePayment, getPaymentForBooking, openPayment, refundPayment } from "./payments";
 import type {
   Booking,
   BookingDetail,
@@ -31,7 +33,44 @@ const EVENT_SELECT = `
   LEFT JOIN hostels h ON h.id = e.hostel_id
 `;
 
-function toFeedEvent(row: EventRow): FeedEvent {
+type WalkOrigin = { lat: number; lng: number; name: string };
+
+/**
+ * Where "how far is it" is measured from: the hostel the traveller is booked
+ * into for that city, or the middle of the city if there's no trip yet.
+ */
+function walkOrigins(me: number | null): Map<string, WalkOrigin> {
+  const db = getDb();
+  const origins = new Map<string, WalkOrigin>();
+
+  for (const c of db.prepare("SELECT slug, lat, lng FROM cities").all<{ slug: string; lat: number; lng: number }>()) {
+    origins.set(c.slug, { lat: c.lat, lng: c.lng, name: "the city centre" });
+  }
+
+  if (me) {
+    const trips = db
+      .prepare(
+        `SELECT t.city, h.name, h.lat, h.lng FROM trips t JOIN hostels h ON h.id = t.hostel_id
+         WHERE t.traveller_id = ?`
+      )
+      .all<{ city: string; name: string; lat: number; lng: number }>(me);
+    for (const trip of trips) {
+      origins.set(trip.city, { lat: trip.lat, lng: trip.lng, name: trip.name });
+    }
+  }
+
+  return origins;
+}
+
+function toFeedEvent(row: EventRow, origins: Map<string, WalkOrigin>): FeedEvent {
+  const origin =
+    origins.get(row.city) ?? { ...(CITY_CENTRE[row.city] ?? CITY_CENTRE.lisbon), name: "the city centre" };
+
+  let walk = row.walk_minutes;
+  if (row.lat !== null && row.lng !== null && row.lat !== undefined && row.lng !== undefined) {
+    walk = walkMinutes(haversineMeters(origin, { lat: row.lat, lng: row.lng }));
+  }
+
   return {
     ...row,
     tags: JSON.parse(row.tags || "[]") as string[],
@@ -41,7 +80,14 @@ function toFeedEvent(row: EventRow): FeedEvent {
     isJoined: row.is_joined > 0,
     avatars: row.avatars ? row.avatars.split(",") : [],
     source: row.source as Source,
+    walk_minutes: walk,
+    walkFrom: walk === 0 ? "your hostel" : origin.name,
   };
+}
+
+function toFeedEvents(rows: EventRow[], me: number | null): FeedEvent[] {
+  const origins = walkOrigins(me);
+  return rows.map((row) => toFeedEvent(row, origins));
 }
 
 /* ---------------------------------------------------------------- cities */
@@ -111,14 +157,14 @@ export function getCityEvents(
       to: to.length === 10 ? `${to}T23:59` : to,
       me,
     });
-  return rows.map(toFeedEvent);
+  return toFeedEvents(rows, me);
 }
 
 export function getEvent(id: number, me: number | null): FeedEvent | null {
   const row = getDb()
     .prepare(`${EVENT_SELECT} WHERE e.id = @id`)
     .get<EventRow>({ id, me });
-  return row ? toFeedEvent(row) : null;
+  return row ? toFeedEvents([row], me)[0] : null;
 }
 
 export function getWhoIsGoing(eventId: number): Traveller[] {
@@ -155,7 +201,7 @@ export function getHostelPosts(hostelId: number, limit: number, me: number | nul
   const rows = getDb()
     .prepare(`${EVENT_SELECT} WHERE e.hostel_id = @hostelId ORDER BY e.starts_at DESC LIMIT @limit`)
     .all<EventRow>({ hostelId, limit, me });
-  return rows.map(toFeedEvent);
+  return toFeedEvents(rows, me);
 }
 
 export type NewEventInput = {
@@ -239,7 +285,7 @@ export function getStaffEvents(hostelId: number, me: number | null): FeedEvent[]
       `${EVENT_SELECT} WHERE e.hostel_id = @hostelId ORDER BY e.starts_at DESC LIMIT 30`
     )
     .all<EventRow>({ hostelId, me });
-  return rows.map(toFeedEvent);
+  return toFeedEvents(rows, me);
 }
 
 export function getStaffStats(hostelId: number) {
@@ -327,6 +373,31 @@ export function getMessages(eventId: number, me: number | null): Message[] {
        ORDER BY m.created_at ASC, m.id ASC LIMIT 100`
     )
     .all<Message>({ eventId, me });
+}
+
+export function getMessagesAfter(eventId: number, afterId: number, me: number | null): Message[] {
+  return getDb()
+    .prepare(
+      `SELECT m.*, t.name, t.initials, t.colour, t.flag,
+              CASE WHEN m.traveller_id = @me THEN 1 ELSE 0 END AS mine
+       FROM messages m JOIN travellers t ON t.id = m.traveller_id
+       WHERE m.event_id = @eventId AND m.hidden = 0 AND m.id > @afterId
+       ORDER BY m.id ASC LIMIT 50`
+    )
+    .all<Message>({ eventId, afterId, me });
+}
+
+export function getMessageById(messageId: number, me: number | null): Message | null {
+  return (
+    getDb()
+      .prepare(
+        `SELECT m.*, t.name, t.initials, t.colour, t.flag,
+                CASE WHEN m.traveller_id = @me THEN 1 ELSE 0 END AS mine
+         FROM messages m JOIN travellers t ON t.id = m.traveller_id
+         WHERE m.id = @messageId`
+      )
+      .get<Message>({ messageId, me }) ?? null
+  );
 }
 
 export function recentMessageCount(me: number, minutes = 5): number {
@@ -485,14 +556,7 @@ export function createBooking(
           total,
         });
 
-      db.prepare(
-        `INSERT INTO payments (booking_id, provider, reference, amount_cents, status, created_at)
-         VALUES (@bookingId, 'sandbox', @reference, @total, 'requires_payment', datetime('now'))`
-      ).run({
-        bookingId: booking.lastInsertRowid,
-        reference: `pay_${booking.lastInsertRowid}_${randomBytes(4).toString("hex")}`,
-        total,
-      });
+      openPayment(booking.lastInsertRowid, code, total);
 
       return { ok: true as const, code };
     })();
@@ -504,7 +568,8 @@ export function createBooking(
 const BOOKING_SELECT = `
   SELECT b.*, h.name AS hostel_name, h.slug AS hostel_slug, h.city AS hostel_city,
     r.name AS room_name, r.kind AS room_kind,
-    p.status AS payment_status, p.reference AS payment_reference, p.paid_at
+    p.status AS payment_status, p.reference AS payment_reference, p.provider AS payment_provider,
+    p.expires_at AS payment_expires_at, p.paid_at, p.refunded_at
   FROM bookings b
   JOIN hostels h ON h.id = b.hostel_id
   JOIN rooms r ON r.id = b.room_id
@@ -544,13 +609,11 @@ export function markBookingPaid(code: string, me: number): Payment["status"] | n
   // back to "confirmed" without re-checking that the bed was still free.
   if (booking.status !== "pending") return null;
 
-  return db.transaction(() => {
-    db.prepare(
-      "UPDATE payments SET status = 'paid', paid_at = datetime('now') WHERE booking_id = ?"
-    ).run(booking.id);
-    db.prepare("UPDATE bookings SET status = 'confirmed' WHERE id = ?").run(booking.id);
-    return "paid" as const;
-  })();
+  const payment = getPaymentForBooking(booking.id);
+  if (!payment) return null;
+
+  const paid = db.transaction(() => completePayment(payment.reference))();
+  return paid ? ("paid" as const) : null;
 }
 
 export function cancelBooking(code: string, me: number): boolean {
@@ -562,9 +625,7 @@ export function cancelBooking(code: string, me: number): boolean {
 
   db.transaction(() => {
     db.prepare("UPDATE bookings SET status = 'cancelled' WHERE id = ?").run(booking.id);
-    db.prepare(
-      "UPDATE payments SET status = 'refunded' WHERE booking_id = ? AND status = 'paid'"
-    ).run(booking.id);
+    refundPayment(booking.id);
   })();
 
   return true;
@@ -604,6 +665,11 @@ export type IngestedEvent = {
   startsAt: string;
   durationMin: number;
   priceCents: number;
+  priceMaxCents: number | null;
+  currency: string;
+  ticketUrl: string | null;
+  lat: number | null;
+  lng: number | null;
   venue: string;
   category: string;
   emoji: string;
@@ -622,7 +688,8 @@ export function upsertIngestedEvent(event: IngestedEvent): "inserted" | "updated
   if (existing) {
     db.prepare(
       `UPDATE events SET title = @title, description = @description, starts_at = @startsAt,
-        duration_min = @durationMin, price_cents = @priceCents, venue = @venue,
+        duration_min = @durationMin, price_cents = @priceCents, price_max_cents = @priceMaxCents,
+        currency = @currency, ticket_url = @ticketUrl, venue = @venue, lat = @lat, lng = @lng,
         category = @category, emoji = @emoji, cover_from = @coverFrom, cover_to = @coverTo
        WHERE id = @id`
     ).run({
@@ -632,7 +699,12 @@ export function upsertIngestedEvent(event: IngestedEvent): "inserted" | "updated
       startsAt: event.startsAt,
       durationMin: event.durationMin,
       priceCents: event.priceCents,
+      priceMaxCents: event.priceMaxCents,
+      currency: event.currency,
+      ticketUrl: event.ticketUrl,
       venue: event.venue,
+      lat: event.lat,
+      lng: event.lng,
       category: event.category,
       emoji: event.emoji,
       coverFrom: event.cover[0],
@@ -643,10 +715,11 @@ export function upsertIngestedEvent(event: IngestedEvent): "inserted" | "updated
 
   db.prepare(
     `INSERT INTO events (city, hostel_id, title, description, starts_at, duration_min, price_cents,
-      source, category, emoji, cover_from, cover_to, venue, walk_minutes, tags, lens, created_by,
-      external_id, origin, created_at)
-     VALUES (@city, NULL, @title, @description, @startsAt, @durationMin, @priceCents, 'ticketed',
-      @category, @emoji, @coverFrom, @coverTo, @venue, @walkMinutes, @tags, @lens, 'ingest',
+      price_max_cents, currency, ticket_url, source, category, emoji, cover_from, cover_to, venue,
+      lat, lng, walk_minutes, tags, lens, created_by, external_id, origin, created_at)
+     VALUES (@city, NULL, @title, @description, @startsAt, @durationMin, @priceCents,
+      @priceMaxCents, @currency, @ticketUrl, 'ticketed',
+      @category, @emoji, @coverFrom, @coverTo, @venue, @lat, @lng, @walkMinutes, @tags, @lens, 'ingest',
       @externalId, 'ingest', datetime('now'))`
   ).run({
     city: event.city,
@@ -655,11 +728,16 @@ export function upsertIngestedEvent(event: IngestedEvent): "inserted" | "updated
     startsAt: event.startsAt,
     durationMin: event.durationMin,
     priceCents: event.priceCents,
+    priceMaxCents: event.priceMaxCents,
+    currency: event.currency,
+    ticketUrl: event.ticketUrl,
     category: event.category,
     emoji: event.emoji,
     coverFrom: event.cover[0],
     coverTo: event.cover[1],
     venue: event.venue,
+    lat: event.lat,
+    lng: event.lng,
     walkMinutes: event.walkMinutes,
     tags: JSON.stringify(event.tags),
     lens: JSON.stringify(event.lens),

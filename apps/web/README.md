@@ -55,16 +55,19 @@ Signing up for real works too: scrypt-hashed password, 30-day httpOnly session c
 | `POST /api/join` | Toggle a join for the signed-in traveller → `{ joined, going }`, `401` when anonymous |
 | `POST /api/events` | Create a hostel event — `401` anonymous, `403` non-staff, hostel taken from the session |
 | `POST /api/ingest` | Runs the import. Requires `x-ingest-token` or an admin session |
+| `GET /api/events/[id]/stream` | SSE feed of new chat messages (`Last-Event-ID` aware) |
+| `POST /api/payments/webhook` | Signed provider callbacks: `payment.paid`, `payment.refunded`, `checkout.session.completed` |
 
 ## What is actually real
 
 - **Auth**: `travellers` + `sessions` tables, scrypt password hashes, httpOnly cookie, `requireUser` / `requireStaff` / `requireAdmin` guards on every gated route and server action.
 - **Posting** is scoped to the staff member's own hostel; the client can't choose whose feed it lands in.
 - **Joins, chat, bookings and payments are rows**, not UI state: join counts, "who's going", the chat log, per-night availability and the receipt all read from SQLite.
-- **Chat** persists, throttles (8 messages per traveller per 10 minutes, then `?chat=slow`), and has a real moderation loop: any traveller can report a message; staff hide or dismiss it from the portal.
+- **Chat is live over SSE.** `/api/events/:id/stream` holds one connection per open chat and pushes new messages as they land (2s server-side lookahead, heartbeats, `Last-Event-ID` resume after a reconnect). No polling from the client, and the page still renders the history server-side for no-JS. Throttled at 8 messages per 10 minutes; hidden messages never reach the stream.
 - **Booking** re-checks capacity inside a transaction ("Someone just took the last bed"), prices per night, supports 1–14 nights, and is scoped to the signed-in guest.
-- **Payments** are a `payments` row with `provider = 'sandbox'` moving `requires_payment → paid`; cancelling a booking keeps the row and its status, so the receipt is still truthful.
+- **Payments have a lifecycle, not a toggle**: an idempotency key per booking+amount (double submits collide), a 30-minute hold window, `requires_payment → paid → refunded`, refunds on cancellation, and signed webhooks at `/api/payments/webhook`. With `STRIPE_SECRET_KEY` set the booking page hands off to a Stripe Checkout Session; without it the `sandbox` provider settles in-process.
 - **Ingest** runs the full pipeline (fetch → normalise → upsert → revalidate) and logs every run to `ingest_runs`. Events are keyed on `external_id`, so re-running updates instead of duplicating.
+- **Distances are computed**, not stored: every hostel, city and event carries lat/lng, and walking time comes from a haversine from the guest's actual hostel (or the city centre when there's no trip yet).
 - **Multi-city**: Lisbon, Porto and Kraków, each with its own feed, hostels and timezone-aware wall-clock times.
 - **PWA**: manifest, maskable icons, installable, conservative service worker (network-first for pages; hashed assets cached only).
 
@@ -77,12 +80,25 @@ AWAY_BASE_URL=https://… INGEST_TOKEN=… npm run ingest
 
 Set `TICKETMASTER_API_KEY` to hit the Ticketmaster Discovery API live (free tier: 5,000 calls/day). **With no key, the same pipeline replays a bundled Ticketmaster-shaped fixture** — the normalise/upsert/revalidate path is identical, it just doesn't leave the box. The mode is shown on `/admin/ingest` and stored on every run.
 
-## What is deliberately stubbed
+Imported events carry the venue's real coordinates (so walking times are correct), the full price band (`min–max`, currency) rather than just the floor, and the provider's ticket URL.
 
-- **Payments are sandboxed.** The `payments` row has the shape a Stripe/PayPal webhook would write; no card data, no PSP.
-- **Chat refresh is a 20s poll** of `router.refresh()`, not sockets. Fine at demo scale, wrong at 10k concurrent.
-- **Distances** (`walk_minutes`) are stored per event rather than computed from coordinates.
-- **Ticket prices** on imported events come from Ticketmaster's lowest `priceRange`; there's no ticket-issuing integration, so "get tickets" links out.
+## Configuration
+
+| Variable | Effect when set | Without it |
+|---|---|---|
+| `TICKETMASTER_API_KEY` | live Discovery API pulls | bundled fixture replay |
+| `STRIPE_SECRET_KEY` | booking page redirects to Stripe Checkout; webhooks confirm | `sandbox` provider settles in-process |
+| `PAYMENT_WEBHOOK_SECRET` | HMAC key for `/api/payments/webhook` | falls back to `dev-webhook-secret` (dev only) |
+| `INGEST_TOKEN` | shared secret for `POST /api/ingest` | falls back to `dev-ingest` |
+
+Webhooks are signed Stripe-style: `stripe-signature: t=<unix>,v1=<hmac-sha256 of "${t}.${body}">`, five-minute replay window, 400 on a bad or stale signature. Handlers are idempotent, so retries are safe.
+
+## Known limits (and why they're still here)
+
+- **The Stripe path is written but unexercised.** It's implemented against the documented Checkout API, and the webhook translation is tested locally with signed payloads — but with no key and no egress from this sandbox, nobody has run a real card through it. The sandbox provider is what the demo uses.
+- **SSE, not WebSockets.** One long-lived request per open chat is fine for a city's worth of hostels; a chat that outgrows a single Node process needs a broker (and a `LISTEN`-style fan-out), which is a different build.
+- **Ticket prices come from the provider.** Imported events show the real min–max range and a "Get tickets" link out; there's no ticket-issuing integration, and no re-check that a listing is still on sale.
+- **Walking time is straight-line.** Haversine at 4.8 km/h — no river crossings, no hills, no opening hours. Lisbon's hills are not in the model.
 
 ## Layout
 
@@ -91,9 +107,9 @@ app/            routes: here, next, explore, event, hostel, booking, trips, you,
                 login, signup, post, hostel-admin, admin/ingest, api/{join,events,ingest}
 app/actions/    server actions: auth, city, chat, booking, staff, ingest
 components/     nav, account-block, aside, event-card, join-button, post-form,
-                city-picker, chat-refresh, share-button, sw-register
+                city-picker, chat-live (SSE), share-button, sw-register
 lib/            db, schema, seed, seed-data, seed-extra, queries, auth, password,
-                ingest, fixtures/, time, format, types, constants
+                payments, ingest, fixtures/, geo, time, format, types, constants
 scripts/        reset-db.mjs, ingest.mjs, make-icons.py
 public/         sw.js, icons/
 ```
