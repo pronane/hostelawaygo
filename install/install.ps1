@@ -110,7 +110,13 @@ $haveEnv = Test-Path (Join-Path $Root 'apps\web\.env.local')
 $haveE2eDeps = Test-Path (Join-Path $Root 'e2e\node_modules\@playwright')
 $pwCache = Join-Path $env:LOCALAPPDATA 'ms-playwright'
 $haveBrowser = (Test-Path $pwCache) -and ((Get-ChildItem $pwCache -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0)
-$haveEdge = Test-Path (Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe')
+# Edge ships with Windows; look in both Program Files trees.
+$edgeCandidates = @(
+  (Join-Path ${env:ProgramFiles} 'Microsoft\Edge\Application\msedge.exe'),
+  $(if (${env:ProgramFiles(x86)}) { Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe' }),
+  $(if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'Microsoft\Edge\Application\msedge.exe' })
+) | Where-Object { $_ }
+$haveEdge = [bool]($edgeCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1)
 
 Info ("repository       " + $Root)
 Info ("node             " + $(if ($nodeVersion) { "$nodeVersion ($(Get-Command node).Source)" } else { 'not installed' }))
