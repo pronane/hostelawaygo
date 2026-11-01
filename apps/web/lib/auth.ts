@@ -36,9 +36,15 @@ export type SessionUser = {
   languages: string;
   /** Seeded demo accounts are pre-verified; new sign-ups verify by email link. */
   email_verified: boolean;
+  /** False for accounts created by a provider — they can always add one later. */
+  has_password: boolean;
 };
 
-type UserRow = Omit<SessionUser, "solo" | "email_verified"> & { solo: number; email_verified_at: string | null };
+type UserRow = Omit<SessionUser, "solo" | "email_verified" | "has_password"> & {
+  solo: number;
+  email_verified_at: string | null;
+  has_password: number;
+};
 
 export async function getCurrentUser(): Promise<SessionUser | null> {
   const jar = await cookies();
@@ -48,7 +54,8 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   const row = getDb()
     .prepare(
       `SELECT t.id, t.name, t.initials, t.flag, t.colour, t.email, t.role, t.hostel_id,
-              t.solo, t.languages, t.email_verified_at, h.name AS hostel_name,
+              t.solo, t.languages, t.email_verified_at,
+              (t.password_hash IS NOT NULL) AS has_password, h.name AS hostel_name,
               h.status AS hostel_status
        FROM sessions s
        JOIN travellers t ON t.id = s.user_id
@@ -59,7 +66,13 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
 
   if (!row) return null;
   const { email_verified_at, ...rest } = row;
-  return { ...rest, solo: Boolean(row.solo), role: row.role as Role, email_verified: Boolean(email_verified_at) };
+  return {
+    ...rest,
+    solo: Boolean(row.solo),
+    role: row.role as Role,
+    email_verified: Boolean(email_verified_at),
+    has_password: Boolean(row.has_password),
+  };
 }
 
 export async function startSession(userId: number): Promise<void> {

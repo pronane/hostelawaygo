@@ -396,6 +396,20 @@ input, select, textarea { font-family: inherit; }
 /* auth */
 .auth { max-width: 420px; }
 .auth-form { margin-top: 20px; }
+.oauth { display: grid; gap: 8px; margin-top: 20px; }
+.oauth-btn {
+  position: relative; display: flex; align-items: center; justify-content: center; gap: 10px;
+  background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 11px 14px;
+  font-size: 13.5px; font-weight: 650; transition: .15s;
+}
+.oauth-btn:hover { border-color: #d9c9ba; transform: translateY(-1px); box-shadow: 0 10px 22px -16px rgba(80,50,30,.5); }
+.oauth-icon { position: absolute; left: 14px; display: grid; place-items: center; width: 20px; height: 20px; }
+.oauth-mock { font-size: 11px; color: #8b7d72; margin: 0; text-align: center; line-height: 1.5; }
+.oauth-mock code { background: #f3ece4; padding: 1px 5px; border-radius: 4px; }
+.identity-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 12.5px; }
+.identity-row:first-of-type { border-top: none; }
+.identity-row b { flex: 1; font-weight: 650; }
+.identity-row span { color: #8b7d72; }
 .auth-divider {
   display: flex; align-items: center; gap: 12px; margin: 26px 0 16px;
   font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: #a5978c; font-weight: 800;

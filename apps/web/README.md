@@ -10,6 +10,9 @@ Next.js 16 (App Router) · React 19 · TypeScript · SQLite via Node's built-in 
 cd apps/web
 npm install
 npm run dev          # http://localhost:3000
+
+# Social sign-in works out of the box with a local stand-in for the providers:
+OAUTH_MOCK=1 npm run dev
 ```
 
 Production:
@@ -39,6 +42,34 @@ The login page also shows one-click buttons for them — but only when demo sign
 
 Signing up for real works too: scrypt-hashed password, 30-day httpOnly session cookie.
 
+**Or with Google, Facebook or Apple.** `/login` and `/signup` carry the three buttons (drawn only for providers that are configured). An account created that way has no password — `/you` offers to add one, so losing the provider doesn't lose the account.
+
+`OAUTH_MOCK=1 npm run dev` points all three at an in-app stand-in provider, so the whole flow — state, PKCE, a signed RS256 `id_token` verified against a JWKS, the callback, the session — can be walked without a developer console. The mock is refused in production and never substitutes for real keys.
+
+### What the accounts do
+
+| Situation | Result |
+|---|---|
+| Provider subject seen before | that account, signed in |
+| Provider's verified email matches an account | linked to it, and the address is marked verified |
+| Provider's email is **unverified** and the account exists | refused — an address you can type into a provider must not open someone else's account |
+| Nobody matches | new traveller, verified, no password |
+| Facebook returns no email | sent to `/signup` with a sentence explaining why |
+
+One traveller, many doors: `identities` rows are `(provider, subject)` — the provider's own user id, which survives an email change there. Login is OAuth 2.0 authorization code with PKCE, `state` (single-use, ten minutes, stored server-side) and, for the OIDC providers, a `nonce` checked against the `id_token`. Apple's client secret is an ES256 JWT signed with the `.p8` key, minted per exchange; Apple posts its callback back as a form, which the same handler accepts.
+
+### Pointing it at the real thing
+
+Register these redirect URIs and paste the credentials into the environment:
+
+| Provider | Redirect URI | Scopes | Notes |
+|---|---|---|---|
+| Google | `${APP_URL}/auth/google/callback` | `openid email profile` | OIDC; `iss` must be `https://accounts.google.com`, `aud` your client id |
+| Facebook | `${APP_URL}/auth/facebook/callback` | `email public_profile` | Graph API v21; the address comes from `/me`, and only if the account confirmed one |
+| Apple | `${APP_URL}/auth/apple/callback` | `name email` | Services ID + Team ID + Key ID + the `.p8` key; the callback is a `form_post` |
+
+Everything else — state, PKCE, nonce, JWKS lookup, signature check, linking — is the same code path as the mock, which is why `npm run test:oauth` is a real test rather than a smoke test.
+
 ## Routes
 
 | Route | What it does |
@@ -55,7 +86,9 @@ Signing up for real works too: scrypt-hashed password, 30-day httpOnly session c
 | `/partner` | Self-serve hostel application: hostel + staff account in one step, status while it waits, one-click demo login for the pending applicant |
 | `/booking/[code]` | Receipt, sandbox payment, cancellation |
 | `/trips` | Your bookings, grouped by city |
-| `/you` | Account, languages, joined events, email confirmation |
+| `/you` | Account, how you sign in (password + connected providers), languages, joined events, email confirmation |
+| `/auth/[provider]`, `/auth/[provider]/callback` | The social sign-in handshake: state + PKCE out, code + `id_token` back, verified, then a session. Not indexed |
+| `/auth/mock/[provider]/*` | The local stand-in provider (`OAUTH_MOCK=1`): consent screen, token endpoint, JWKS, userinfo. 404 without the flag |
 | `/safe` | Share my night: where you're going, back-by time, "I'm home safe" / "running late" |
 | `/safe/[token]` | The friend's view — first name, plan, back-by time, live status (out / home safe / overdue). No sign-in, not indexed |
 | `/verify?token=…` | Confirms an email address from the link we send |
@@ -86,6 +119,7 @@ The three growth problems — hostel buy-in, traveller pull, and opening a new c
 ## What is actually real
 
 - **Auth**: `travellers` + `sessions` tables, scrypt password hashes, httpOnly cookie, `requireUser` / `requireStaff` / `requireAdmin` guards on every gated route and server action.
+- **Social sign-in** is a real OAuth 2.0 code flow: server-side `state` (single use, 10 minutes), PKCE S256, an OIDC `nonce`, `id_token` signature verification against the provider's JWKS, and `iss`/`aud`/`exp` checks — no `jsonwebtoken` dependency, no bypass for the mock. Accounts are matched on `(provider, subject)`, linked to an existing account only by a **verified** email, and a linked provider can verify an address the app itself never confirmed.
 - **Posting** is scoped to the staff member's own hostel; the client can't choose whose feed it lands in.
 - **Joins, chat, bookings and payments are rows**, not UI state: join counts, "who's going", the chat log, per-night availability and the receipt all read from SQLite.
 - **Chat is live over SSE.** `/api/events/:id/stream` holds one connection per open chat and pushes new messages as they land (2s server-side lookahead, heartbeats, `Last-Event-ID` resume after a reconnect). No polling from the client, and the page still renders the history server-side for no-JS. Throttled at 8 messages per 10 minutes; hidden messages never reach the stream.
@@ -122,9 +156,13 @@ Imported events carry the venue's real coordinates (so walking times are correct
 | `PAYMENT_WEBHOOK_SECRET` | HMAC key for `/api/payments/webhook` | `dev-webhook-secret` in development; **every webhook rejected in production** |
 | `INGEST_TOKEN` | shared secret for `POST /api/ingest` and `npm run ingest` | `dev-ingest` in development; required in production (admin sessions still work) |
 | `RESEND_API_KEY` (+ `MAIL_FROM`, `APP_URL`) | sends email-confirmation links | no email; in development the link is shown on `/you` |
-| `APP_URL` | canonical origin for QR codes, sitemap and share links | `http://localhost:3000` |
+| `APP_URL` | canonical origin for QR codes, sitemap, share links **and OAuth redirect URIs** | `http://localhost:3000` |
 | `DIGEST_TOKEN` | shared secret for `POST /api/digest` and `npm run digest` | `dev-digest` in development; required in production (admin sessions still work) |
 | `DEMO_LOGIN` | `1` enables one-click demo sign-in outside development | on in development only |
+| `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` | "Continue with Google" | button hidden |
+| `FACEBOOK_APP_ID` + `FACEBOOK_APP_SECRET` | "Continue with Facebook" | button hidden |
+| `APPLE_CLIENT_ID` + `APPLE_TEAM_ID` + `APPLE_KEY_ID` + `APPLE_PRIVATE_KEY` | "Continue with Apple" (ES256 client secret, form-post callback) | button hidden |
+| `OAUTH_MOCK` | `1` points the three providers at the local stand-in — development only | real providers only |
 
 Webhooks are signed Stripe-style: `stripe-signature: t=<unix>,v1=<hmac-sha256 of "${t}.${body}">`, five-minute replay window, 400 on a bad or stale signature. Handlers are idempotent, so retries are safe.
 
@@ -133,6 +171,8 @@ Webhooks are signed Stripe-style: `stripe-signature: t=<unix>,v1=<hmac-sha256 of
 - **The Stripe path is written but unexercised.** It's implemented against the documented Checkout API, and the webhook translation is tested locally with signed payloads — but with no key and no egress from this sandbox, nobody has run a real card through it. The sandbox provider is what the demo uses.
 - **SSE, not WebSockets.** One long-lived request per open chat is fine for a city's worth of hostels; a chat that outgrows a single Node process needs a broker (and a `LISTEN`-style fan-out), which is a different build.
 - **Ticket prices come from the provider.** Imported events show the real min–max range and a "Get tickets" link out; there's no ticket-issuing integration, and no re-check that a listing is still on sale.
+- **The three providers are verified by the mock, not by Google.** No keys, no egress: the mock signs real RS256 tokens and the app checks them properly, and `npm run test:oauth` covers 22 cases including replay, tampering, PKCE and account takeover. What is untested is the part only the providers can answer — that they accept these redirect URIs and scopes.
+- **No disconnect.** An identity can be linked but not unlinked from `/you`; unlinking needs a rule ("not the last door") that isn't written yet.
 - **Walking time is straight-line.** Haversine at 4.8 km/h — no river crossings, no hills, no opening hours. Lisbon's hills are not in the model.
 
 ## Layout
