@@ -33,6 +33,8 @@ npm run build && npm run start
 
 Putting it on the internet — Render, Fly, Railway, a VPS, and the one setting
 that decides whether your data survives: **[docs/deploy.md](../../docs/deploy.md)**.
+On Vercel (Root Directory `apps/web`) it runs with an ephemeral `/tmp` database:
+pages work, nothing persists, and `/api/health` says `storage: "ephemeral"`.
 
 The database is created and seeded automatically on the first request at `data/away.db`. Seed dates are relative to **today**, so the demo always feels live. After a few days they drift — re-anchor with:
 

@@ -72,10 +72,15 @@ later does nothing; use `npm run admin:create` (see below).
 
 Vercel runs the app, but it cannot keep its database. A Vercel function gets a
 read-only deployment directory and a `/tmp` that belongs to one instance and
-disappears with it, so:
+disappears with it.
 
-- the app now writes to `/tmp/away.db` there instead of failing (the
-  `ENOENT: mkdir /var/task/apps/web/data` error, if you saw it, is exactly this),
+> **Seeing `ENOENT: mkdir '/var/task/apps/web/data'`?** That is a deployment from
+> before this was handled. Redeploy from `master` — no settings to change, the
+> app now writes to `/tmp` on its own and says so in `/api/health`.
+
+So:
+
+- the app writes to `/tmp/away.db` there instead of failing,
 - **the feed is reseeded on every cold start**, so the demo content always looks
   current and nothing anyone does survives,
 - **two instances are two databases.** Sessions live in the database, so the
@@ -90,7 +95,8 @@ If that is what you want — a URL that shows the product, no cost, no upkeep �
 set it up like this:
 
 1. **Project → Settings → General → Root Directory: `apps/web`.** The repo is a
-   monorepo and the app is not at the root.
+   monorepo and the app is not at the root. Node comes from `apps/web/.node-version`
+   (22.22.3) and `engines` in `apps/web/package.json`; `node:sqlite` needs 22.5+.
 2. Environment variables: `APP_URL` = your Vercel URL, `DEMO_LOGIN=1`,
    `AWAY_DEMO_ACCOUNTS=1` (so `/login` can sign anyone in with one click).
    Optionally `OAUTH_MOCK=1` + `OAUTH_MOCK_ALLOW_PROD=1` for the social buttons.
