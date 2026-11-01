@@ -46,6 +46,11 @@ const run = async () => {
       response.status === 200 && body.ok === true,
       `${response.status} · schema ${body.schema ?? "?"} · ${body.cities ?? "?"} cities · ${body.events ?? "?"} events · ${body.payments ?? "?"} payments · ${ms}ms`
     );
+    if (body.storage === "ephemeral") {
+      console.log(
+        `  !  the database is ephemeral (${body.storageWhy ?? "no disk"}) — every restart loses accounts, bookings and messages\n`
+      );
+    }
     if (body.demo) {
       console.log(
         `  !  demo mode is on (logins: ${body.demo.logins}, accounts: ${body.demo.accounts}) — fine for a demo, wrong for real people\n`

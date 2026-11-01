@@ -1,17 +1,15 @@
-import { mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
 import { Db } from "./sqlite";
 import { DROP_ALL, SCHEMA, SCHEMA_VERSION } from "./schema";
 import { seed } from "./seed";
+import { storage } from "./storage";
 
-const DB_PATH = process.env.AWAY_DB_PATH ?? join(process.cwd(), "data", "away.db");
+const DB_PATH = storage.path;
 
 const globalForDb = globalThis as unknown as { __awayDb?: Db };
 
 export function getDb(): Db {
   if (globalForDb.__awayDb) return globalForDb.__awayDb;
 
-  mkdirSync(dirname(DB_PATH), { recursive: true });
   const db = new Db(DB_PATH);
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");

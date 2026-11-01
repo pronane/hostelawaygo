@@ -13,7 +13,8 @@ about whether that file survives a restart.
 | **Render demo** | `render.demo.yaml` — free instance, no disk. The database is rebuilt from the seed every time the instance restarts, so it is a demo and nothing more. | — |
 | **Render proper** | — | `render.yaml` — Starter ($7/mo) + 1 GB disk ($0.25/mo). Data persists. |
 | **Fly.io / Railway / VPS** | — | `Dockerfile` in the repo root; mount a volume at `/data`. |
-| **Vercel / Netlify / Cloudflare** | ✗ | They have no writable disk and no long-lived process. Hosting this there means replacing SQLite with Postgres or Turso first — a code change, not a config change. |
+| **Vercel** | — | Runs, with an **ephemeral** database in `/tmp`: it reseeds on every cold start and each instance has its own copy. Good for showing the UI, not for keeping bookings — see [Vercel](#vercel). |
+| **Netlify / Cloudflare** | ✗ | No writable disk at all, so the app cannot even start its database. Postgres or Turso first — a code change, not a config change. |
 
 ## Render, in full
 
@@ -66,6 +67,47 @@ later does nothing; use `npm run admin:create` (see below).
   the safe way to take one while the app is running.
 - **Scaling.** You can't scale out with a disk; you get one instance. Fine at
   Lisbon scale, and the reason to move to Postgres later is concurrency, not size.
+
+## Vercel
+
+Vercel runs the app, but it cannot keep its database. A Vercel function gets a
+read-only deployment directory and a `/tmp` that belongs to one instance and
+disappears with it, so:
+
+- the app now writes to `/tmp/away.db` there instead of failing (the
+  `ENOENT: mkdir /var/task/apps/web/data` error, if you saw it, is exactly this),
+- **the feed is reseeded on every cold start**, so the demo content always looks
+  current and nothing anyone does survives,
+- **two instances are two databases.** Sessions live in the database, so the
+  next request may land on an instance that has never heard of your cookie and
+  quietly sign you out; a booking made on one instance is invisible to the other.
+  It is intermittent, which is the worst shape for a bug — the demo buttons are
+  the workaround: they sign you in on whichever instance answers,
+- `/api/health` reports `"storage": "ephemeral"`, and
+  `node scripts/verify-deploy.mjs https://…` prints a warning.
+
+If that is what you want — a URL that shows the product, no cost, no upkeep —
+set it up like this:
+
+1. **Project → Settings → General → Root Directory: `apps/web`.** The repo is a
+   monorepo and the app is not at the root.
+2. Environment variables: `APP_URL` = your Vercel URL, `DEMO_LOGIN=1`,
+   `AWAY_DEMO_ACCOUNTS=1` (so `/login` can sign anyone in with one click).
+   Optionally `OAUTH_MOCK=1` + `OAUTH_MOCK_ALLOW_PROD=1` for the social buttons.
+3. **Do not set `AWAY_DB_PATH`.** If it is set, the app takes it literally and
+   refuses to start when the directory is read-only, which is the correct
+   behaviour for a mounted disk and the wrong one here. Unset it.
+4. Deploy, then check `https://…/api/health` says `schema 8` and
+   `storage: "ephemeral"`.
+
+The moment you want a real hostel, an admin account that survives, or an email
+that goes out on a schedule, move to [Render](#render-in-full) or the
+[Dockerfile](#docker-fly-railway-a-vps-your-own-machine): same repository, same
+environment variables, plus one mounted directory.
+
+Scripts are the other casualty: `npm run ingest`, `npm run digest` and the
+outreach bot are processes, not pages, and Vercel has nowhere to run them. They
+work on Render's shell, in Docker, or on your laptop against the same database.
 
 ## Anywhere else
 
@@ -126,6 +168,7 @@ set — never as a public web service.
 - [ ] Email configured if you want verification and the digest to work
 - [ ] A backup of `away.db` you have actually restored once
 - [ ] `OUTREACH_POSTAL_ADDRESS` set if the bot will ever send real mail
+- [ ] `storage: "persistent"` in `/api/health` — if it says `ephemeral`, this is a demo, not a deployment
 
 ## The limit that will bite: schema upgrades
 
@@ -149,6 +192,7 @@ migration story (or Postgres) is a separate piece of work.
 | Data disappears after every deploy or idle period | no disk attached, or `AWAY_DB_PATH` points inside the container instead of the volume |
 | Build fails on Render | Node too old — `.node-version` pins 22.22.3, and `NODE_VERSION` is set in both blueprints |
 | First request after a quiet period is slow | free instances sleep; upgrade to Starter |
+| `ENOENT: mkdir …/data` at request time | the deployment directory is read-only — that is Vercel. The app falls back to `/tmp`; if you set `AWAY_DB_PATH` yourself, unset it or point it at a real disk |
 | `redirect_uri_mismatch` from Google | `APP_URL` doesn't match the URI registered with the provider, character for character |
 | Sign-in works but nobody can approve hostels | the bootstrap admin never ran (wrong env at first boot) — `npm run admin:create -- you@example.com` |
 

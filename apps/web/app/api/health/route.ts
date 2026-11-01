@@ -2,11 +2,12 @@ import { getDb } from "@/lib/db";
 import { SCHEMA_VERSION } from "@/lib/schema";
 import { paymentProvider } from "@/lib/payments";
 import { demoAccountsEnabled, demoLoginEnabled } from "@/lib/flags";
+import { storage } from "@/lib/storage";
 
 /**
- * Liveness plus the two facts worth knowing about a running deployment: does the
- * database exist and is it the schema this build expects, and is this the demo
- * or the real thing.
+ * Liveness plus the three facts worth knowing about a running deployment: is the
+ * database there and the schema this build expects, will it still be there
+ * tomorrow (`storage`), and is this the demo or the real thing.
  *
  * Deliberately cheap and public: no session, no counts of people, nothing that
  * would be a leak. A deploy platform points its health check here, which also
@@ -32,6 +33,10 @@ export function GET() {
       cities,
       events,
       payments: paymentProvider(),
+      // "ephemeral" means the database does not survive this instance — true on
+      // Vercel, on any serverless host, and on a machine with nothing mounted.
+      storage: storage.ephemeral ? "ephemeral" : "persistent",
+      storageWhy: storage.reason,
       demo:
         demoAccountsEnabled() || demoLoginEnabled()
           ? { logins: demoLoginEnabled(), accounts: demoAccountsEnabled() }
