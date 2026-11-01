@@ -23,14 +23,14 @@ export default async function HostelAdminPage({
   const { cancelled, hidden, error } = await searchParams;
   const user = await requireActiveStaff("/hostel-admin");
 
-  const hostels = getHostels();
+  const hostels = await getHostels();
   const hostel = (user.hostel_id ? hostels.find((h) => h.id === user.hostel_id) : hostels[0])!;
 
-  const stats = getStaffStats(hostel.id);
-  const events = getStaffEvents(hostel.id, user.id);
-  const bookings = getBookingsForHostel(hostel.id);
-  const reported = getReportedMessages(hostel.id);
-  const partner = getPartnerStats(hostel.id);
+  const stats = await getStaffStats(hostel.id);
+  const events = await getStaffEvents(hostel.id, user.id);
+  const bookings = await getBookingsForHostel(hostel.id);
+  const reported = await getReportedMessages(hostel.id);
+  const partner = await getPartnerStats(hostel.id);
   const scanToJoin = partner.opens > 0 ? Math.round((partner.joins / partner.opens) * 100) : 0;
 
   return (

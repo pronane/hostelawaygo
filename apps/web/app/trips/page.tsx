@@ -15,7 +15,7 @@ const STATUS_LABEL: Record<string, { label: string; tone: string }> = {
 
 export default async function TripsPage() {
   const user = await requireUser("/trips");
-  const bookings = getBookingsForUser(user.id);
+  const bookings = await getBookingsForUser(user.id);
 
   return (
     <>

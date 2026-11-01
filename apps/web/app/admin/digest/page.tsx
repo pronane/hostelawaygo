@@ -25,8 +25,8 @@ export default async function DigestPage({
   await requireAdmin("/admin/digest");
   const { preview, sent, considered } = await searchParams;
 
-  const audience = digestAudience();
-  const sends = recentDigestSends(12);
+  const audience = await digestAudience();
+  const sends = await recentDigestSends(12);
   const enabled = mailEnabled();
   const previewRun = preview ? await runDigest({ dryRun: true }) : null;
   const sample = previewRun?.results.find((r) => r.digest)?.digest ?? null;

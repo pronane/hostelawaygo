@@ -11,11 +11,11 @@ export async function cancelEventAction(formData: FormData) {
   if (!user) redirect(`/login?next=${encodeURIComponent("/hostel-admin")}`);
   if (!isStaff(user)) redirect("/?denied=staff");
 
-  const event = getEvent(eventId, user.id);
+  const event = await getEvent(eventId, user.id);
   if (!event) redirect("/hostel-admin");
   if (user.role !== "admin" && event.hostel_id !== user.hostel_id) redirect("/hostel-admin?error=scope");
 
-  cancelEvent(eventId);
+  await cancelEvent(eventId);
   revalidatePath("/hostel-admin");
   revalidatePath("/");
   revalidatePath(`/event/${eventId}`);
@@ -30,11 +30,11 @@ export async function hideMessageAction(formData: FormData) {
   if (!isStaff(user)) redirect("/?denied=staff");
 
   // Staff can only moderate chats on their own hostel's events.
-  const hostelId = getMessageHostel(messageId);
+  const hostelId = await getMessageHostel(messageId);
   if (hostelId === undefined) redirect("/hostel-admin");
   if (user.role !== "admin" && hostelId !== user.hostel_id) redirect("/hostel-admin?error=scope");
 
-  hideMessage(messageId);
+  await hideMessage(messageId);
   revalidatePath("/hostel-admin");
   revalidatePath(`/event/${eventId}`);
   redirect("/hostel-admin?hidden=1");
@@ -47,11 +47,11 @@ export async function clearReportAction(formData: FormData) {
   if (!isStaff(user)) redirect("/?denied=staff");
 
   // Staff can only moderate chats on their own hostel's events.
-  const hostelId = getMessageHostel(messageId);
+  const hostelId = await getMessageHostel(messageId);
   if (hostelId === undefined) redirect("/hostel-admin");
   if (user.role !== "admin" && hostelId !== user.hostel_id) redirect("/hostel-admin?error=scope");
 
-  clearReport(messageId);
+  await clearReport(messageId);
   revalidatePath("/hostel-admin");
   redirect("/hostel-admin");
 }

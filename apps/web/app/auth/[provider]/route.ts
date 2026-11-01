@@ -16,7 +16,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ prov
   const url = new URL(request.url);
 
   try {
-    const { url: authorizeUrl } = beginAuth(provider, request, url.searchParams.get("next") ?? "/");
+    const { url: authorizeUrl } = await beginAuth(provider, request, url.searchParams.get("next") ?? "/");
     return Response.redirect(authorizeUrl, 302);
   } catch (error) {
     const code = error instanceof OAuthError ? error.code : "provider";

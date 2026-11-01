@@ -32,8 +32,8 @@ export default async function BookingPage({
   const user = await getCurrentUser();
   if (!user) notFound();
 
-  expireStalePayments();
-  const booking = getBookingByCode(code);
+  await expireStalePayments();
+  const booking = await getBookingByCode(code);
   if (!booking) notFound();
   if (booking.traveller_id !== user.id && user.role !== "admin") notFound();
 

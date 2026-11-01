@@ -18,14 +18,14 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
-  const hostel = getHostelBySlug(slug);
+  const hostel = await getHostelBySlug(slug);
   return { title: hostel?.name ?? "Hostel" };
 }
 
 export default async function HostelPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const query = await searchParams;
-  const hostel = getHostelBySlug(slug);
+  const hostel = await getHostelBySlug(slug);
   // Pending and rejected applications must not be bookable, or indexable.
   if (!hostel || hostel.status !== "active") notFound();
 
@@ -36,9 +36,9 @@ export default async function HostelPage({ params, searchParams }: Props) {
   const validRange = nights > 0 && nights <= 14;
 
   const user = await getCurrentUser();
-  const rooms = validRange ? roomsWithAvailability(hostel.id, checkIn, checkOut) : [];
-  const city = getCity(hostel.city);
-  const events = getHostelPosts(hostel.id, 8, user?.id ?? null).filter(
+  const rooms = validRange ? await roomsWithAvailability(hostel.id, checkIn, checkOut) : [];
+  const city = await getCity(hostel.city);
+  const events = (await getHostelPosts(hostel.id, 8, user?.id ?? null)).filter(
     (e) => e.starts_at.slice(0, 10) >= today
   );
 

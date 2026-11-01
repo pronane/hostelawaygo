@@ -16,15 +16,15 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(_request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const hostel = getHostelBySlug(slug);
+  const hostel = await getHostelBySlug(slug);
   if (!hostel || hostel.status !== "active") redirect("/explore");
 
   const visitor = await ensureVisitor();
-  recordArrival(hostel.id, visitor);
+  await recordArrival(hostel.id, visitor);
   await rememberStay(hostel.slug);
 
   // Only switch the feed to a city travellers are allowed to see.
-  const city = getCity(hostel.city);
+  const city = await getCity(hostel.city);
   if (city?.status === "live") {
     const jar = await cookies();
     jar.set(CITY_COOKIE, hostel.city, {

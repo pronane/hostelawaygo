@@ -12,7 +12,7 @@ export async function resendVerificationAction() {
   if (user.email_verified || !user.email) redirect("/you");
 
   // One email a minute is plenty; stops the button being used to spam an inbox.
-  const recent = getDb()
+  const recent = await getDb()
     .prepare(
       "SELECT 1 AS x FROM email_tokens WHERE traveller_id = ? AND expires_at > ? AND used_at IS NULL"
     )

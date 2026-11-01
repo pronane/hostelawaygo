@@ -30,7 +30,7 @@ type Props = {
 
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
-  return { title: `${getCity(slug)?.name ?? "City"} · city console` };
+  return { title: `${(await getCity(slug))?.name ?? "City"} · city console` };
 }
 
 export default async function CityConsolePage({ params, searchParams }: Props) {
@@ -38,14 +38,14 @@ export default async function CityConsolePage({ params, searchParams }: Props) {
   await requireAdmin(`/admin/cities/${slug}`);
   const { created, blocked, moved, launch, saved, approved, rejected, error } = await searchParams;
 
-  const city = getCity(slug);
+  const city = await getCity(slug);
   if (!city) notFound();
 
-  const supply = getCitySupply(city.slug);
+  const supply = await getCitySupply(city.slug);
   const gates = launchGates(city, supply);
   const readiness = launchReadiness(gates);
-  const hostels = getCityHostels(city.slug);
-  const applications = getCityApplications(city.slug);
+  const hostels = await getCityHostels(city.slug);
+  const applications = await getCityApplications(city.slug);
   const status = CITY_STATUS[city.status];
   const blockingGate = blocked ? gates.find((g) => g.key === blocked) : undefined;
 

@@ -30,16 +30,16 @@ export default async function HerePage({ searchParams }: Props) {
   const jar = await cookies();
   // A cookie can outlive a city going back to "opening", so it is never
   // trusted on its own: resolve against the live set every time.
-  const city = getLiveCityOr(jar.get(CITY_COOKIE)?.value)!;
+  const city = (await getLiveCityOr(jar.get(CITY_COOKIE)?.value))!;
 
-  const events = getCityEvents(city.slug, today, addDays(today, 7), user?.id ?? null);
+  const events = await getCityEvents(city.slug, today, addDays(today, 7), user?.id ?? null);
   const filtered = filter === "all" ? events : events.filter((e) => e.tags.includes(filter));
   const groups = groupByDay(filtered);
-  const trip = getTrip(city.slug, user?.id ?? null);
-  const cities = getLiveCities();
+  const trip = await getTrip(city.slug, user?.id ?? null);
+  const cities = await getLiveCities();
   // A scan from a hostel in a city that isn't live yet must not greet you with
   // somebody else's city in the feed below.
-  const scanned = from ? getHostelBySlug(from) : undefined;
+  const scanned = from ? await getHostelBySlug(from) : undefined;
   const fromHostel = scanned?.city === city.slug ? scanned : undefined;
 
   return (

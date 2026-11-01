@@ -30,8 +30,8 @@ export default async function CitiesPage({
   await requireAdmin("/admin/cities");
   const { error } = await searchParams;
 
-  const applications = getPendingApplications();
-  const pipeline = getCityPipeline().sort(
+  const applications = await getPendingApplications();
+  const pipeline = (await getCityPipeline()).sort(
     (a, b) =>
       ORDER[a.city.status] - ORDER[b.city.status] ||
       b.readiness.passed - a.readiness.passed ||

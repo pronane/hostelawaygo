@@ -14,8 +14,8 @@ export default async function IngestPage({
   await requireAdmin("/admin/ingest");
   const { ran, mode } = await searchParams;
 
-  const runs = getIngestRuns();
-  const totals = getIngestTotals();
+  const runs = await getIngestRuns();
+  const totals = await getIngestTotals();
   const liveConfigured = Boolean(process.env.TICKETMASTER_API_KEY?.trim());
 
   return (

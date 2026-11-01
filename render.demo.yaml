@@ -30,6 +30,14 @@ services:
       - key: NODE_VERSION
         value: 22.22.3
 
+      # The free plan has no disk, so the database is rebuilt on every restart
+      # unless you point it at Turso. Set both of these and this stops being a
+      # demo: same app, real persistence. See docs/deploy.md#turso.
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false
+
       # No disk on free: the default data/away.db inside the container is right.
       - key: APP_URL
         sync: false

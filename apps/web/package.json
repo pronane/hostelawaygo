@@ -13,9 +13,12 @@
     "ingest": "node --no-warnings scripts/ingest.mjs",
     "digest": "node scripts/digest.mjs",
     "test:oauth": "node --no-warnings scripts/oauth-selftest.mjs",
-    "admin:create": "node --no-warnings scripts/create-admin.mjs"
+    "admin:create": "node --no-warnings scripts/create-admin.mjs",
+    "test:turso": "node --no-warnings scripts/turso-selftest.mjs",
+    "turso:mock": "node --no-warnings scripts/turso-mock.mjs"
   },
   "dependencies": {
+    "@libsql/client": "^0.18.0",
     "next": "^16.4.3",
     "qrcode": "^1.5.4",
     "react": "^19.3.1",

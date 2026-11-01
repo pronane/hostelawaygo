@@ -25,7 +25,7 @@ export async function loginAction(formData: FormData) {
   const password = String(formData.get("password") ?? "");
   const next = safeNext(formData.get("next"));
 
-  const user = getDb()
+  const user = await getDb()
     .prepare("SELECT id, password_hash FROM travellers WHERE lower(email) = ?")
     .get<{ id: number; password_hash: string | null }>(email);
 
@@ -46,7 +46,7 @@ export async function demoLoginAction(formData: FormData) {
   if (!demoLoginEnabled()) redirect("/login?error=demo_off");
   if (!ACCOUNTS.some((a) => a.email.toLowerCase() === email)) redirect("/login?error=demo");
 
-  const user = getDb()
+  const user = await getDb()
     .prepare("SELECT id FROM travellers WHERE lower(email) = ?")
     .get<{ id: number }>(email);
 
@@ -70,9 +70,9 @@ export async function signupAction(formData: FormData) {
   if (password.length < 8) fail("password");
 
   const db = getDb();
-  if (db.prepare("SELECT 1 AS x FROM travellers WHERE lower(email) = ?").get(email)) fail("taken");
+  if (await db.prepare("SELECT 1 AS x FROM travellers WHERE lower(email) = ?").get(email)) fail("taken");
 
-  const info = db
+  const info = await db
     .prepare(
       `INSERT INTO travellers (name, initials, flag, colour, solo, languages, email, password_hash, role)
        VALUES (@name, @initials, @flag, @colour, 1, 'English', @email, @hash, 'traveller')`
@@ -112,7 +112,7 @@ export async function setPasswordAction(formData: FormData) {
   if (password.length < 8) redirect("/you?password=short");
   if (password !== confirm) redirect("/you?password=mismatch");
 
-  getDb().prepare("UPDATE travellers SET password_hash = ? WHERE id = ?").run(hashPassword(password), user.id);
+  await getDb().prepare("UPDATE travellers SET password_hash = ? WHERE id = ?").run(hashPassword(password), user.id);
   redirect("/you?password=set");
 }
 

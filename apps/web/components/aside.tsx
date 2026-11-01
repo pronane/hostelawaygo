@@ -15,13 +15,13 @@ import { plural } from "@/lib/format";
 export async function Aside({ user }: { user: SessionUser | null }) {
   const today = todayISO();
   const jar = await cookies();
-  const city = getLiveCityOr(jar.get(CITY_COOKIE)?.value);
+  const city = await getLiveCityOr(jar.get(CITY_COOKIE)?.value);
 
-  const trips = getTrips(user?.id ?? null);
+  const trips = await getTrips(user?.id ?? null);
   const nextTrip = trips.find((t) => t.starts_on >= today) ?? trips[trips.length - 1];
-  const tonight = city ? getCityEvents(city.slug, today, addDays(today, 1), user?.id ?? null).slice(0, 3) : [];
-  const bookings = getBookingsForUser(user?.id ?? null);
-  const joined = getJoinedCount(user?.id ?? null);
+  const tonight = city ? (await getCityEvents(city.slug, today, addDays(today, 1), user?.id ?? null)).slice(0, 3) : [];
+  const bookings = await getBookingsForUser(user?.id ?? null);
+  const joined = await getJoinedCount(user?.id ?? null);
 
   const stayDays = nextTrip
     ? Array.from({ length: diffDays(nextTrip.starts_on, nextTrip.ends_on) + 1 }, (_, i) =>
@@ -39,7 +39,7 @@ export async function Aside({ user }: { user: SessionUser | null }) {
               : "You're here"}
           </div>
           <h3>
-            {getCity(nextTrip.city)?.name ?? nextTrip.city} ·{" "}
+            {(await getCity(nextTrip.city))?.name ?? nextTrip.city} ·{" "}
             {plural(diffDays(nextTrip.starts_on, nextTrip.ends_on), "night")}
           </h3>
           <p>

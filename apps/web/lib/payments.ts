@@ -56,19 +56,19 @@ export type PaymentIntent = {
  * Returns a payable intent for a booking, creating or renewing the payment row
  * as needed. Safe to call repeatedly: an unexpired, unpaid payment is reused.
  */
-export function openPayment(bookingId: number, bookingCode: string, amountCents: number): PaymentIntent {
+export async function openPayment(bookingId: number, bookingCode: string, amountCents: number): Promise<PaymentIntent> {
   const db = getDb();
   const key = idempotencyKeyFor(bookingCode, amountCents);
   const provider = paymentProvider();
 
-  const existing = db
+  const existing = await db
     .prepare("SELECT * FROM payments WHERE idempotency_key = ? OR (booking_id = ? AND status = 'requires_payment')")
     .get<Payment>(key, bookingId);
 
-  const now = db.prepare("SELECT datetime('now') AS now, datetime('now', ?) AS expires").get<{
+  const now = (await db.prepare("SELECT datetime('now') AS now, datetime('now', ?) AS expires").get<{
     now: string;
     expires: string;
-  }>(`+${PAYMENT_WINDOW_MINUTES} minutes`)!;
+  }>(`+${PAYMENT_WINDOW_MINUTES} minutes`))!;
 
   if (existing && existing.status === "paid") {
     return {
@@ -95,7 +95,7 @@ export function openPayment(bookingId: number, bookingCode: string, amountCents:
   }
 
   if (existing) {
-    db.prepare(
+    await db.prepare(
       `UPDATE payments SET status = 'requires_payment', provider = @provider, reference = @reference,
         expires_at = @expires, paid_at = NULL, refunded_at = NULL, amount_cents = @amount, currency = @currency
        WHERE id = @id`
@@ -109,7 +109,7 @@ export function openPayment(bookingId: number, bookingCode: string, amountCents:
     });
 
     return {
-      reference: db.prepare("SELECT reference FROM payments WHERE id = ?").get<{ reference: string }>(existing.id)!
+      reference: (await db.prepare("SELECT reference FROM payments WHERE id = ?").get<{ reference: string }>(existing.id))!
         .reference,
       provider,
       status: "requires_payment",
@@ -121,7 +121,7 @@ export function openPayment(bookingId: number, bookingCode: string, amountCents:
   }
 
   const reference = newPaymentReference(bookingId);
-  db.prepare(
+  await db.prepare(
     `INSERT INTO payments (booking_id, provider, method, reference, idempotency_key, amount_cents,
        currency, status, created_at, expires_at)
      VALUES (@bookingId, @provider, 'card', @reference, @key, @amount, 'EUR', 'requires_payment',
@@ -139,13 +139,13 @@ export function openPayment(bookingId: number, bookingCode: string, amountCents:
   };
 }
 
-export function getPaymentForBooking(bookingId: number): Payment | undefined {
+export async function getPaymentForBooking(bookingId: number): Promise<Payment | undefined> {
   return getDb()
     .prepare("SELECT * FROM payments WHERE booking_id = ? ORDER BY id DESC LIMIT 1")
     .get<Payment>(bookingId);
 }
 
-export function getPaymentByReference(reference: string): Payment | undefined {
+export async function getPaymentByReference(reference: string): Promise<Payment | undefined> {
   return getDb().prepare("SELECT * FROM payments WHERE reference = ?").get<Payment>(reference);
 }
 
@@ -159,19 +159,19 @@ export function getPaymentByReference(reference: string): Payment | undefined {
  * in the same step — the bed is gone, so the ledger has to say so rather than
  * leaving a paid stay that no longer exists.
  */
-export function completePayment(reference: string): Payment | null {
+export async function completePayment(reference: string): Promise<Payment | null> {
   const db = getDb();
-  const payment = getPaymentByReference(reference);
+  const payment = await getPaymentByReference(reference);
   if (!payment) return null;
   if (payment.status === "paid" || payment.status === "refunded") return payment;
 
-  const booking = db
+  const booking = await db
     .prepare("SELECT id, status FROM bookings WHERE id = ?")
     .get<{ id: number; status: string }>(payment.booking_id);
 
-  return db.transaction((): Payment => {
+  return db.transaction(async (): Promise<Payment> => {
     if (booking?.status === "cancelled") {
-      db.prepare(
+      await db.prepare(
         `UPDATE payments SET status = 'refunded', paid_at = datetime('now'),
            refunded_at = datetime('now'), expires_at = NULL
          WHERE id = ?`
@@ -179,31 +179,31 @@ export function completePayment(reference: string): Payment | null {
       return { ...payment, status: "refunded", expires_at: null, refunded_at: payment.refunded_at };
     }
 
-    db.prepare(
+    await db.prepare(
       "UPDATE payments SET status = 'paid', paid_at = datetime('now'), expires_at = NULL WHERE id = ?"
     ).run(payment.id);
-    db.prepare("UPDATE bookings SET status = 'confirmed' WHERE id = ? AND status != 'cancelled'").run(
+    await db.prepare("UPDATE bookings SET status = 'confirmed' WHERE id = ? AND status != 'cancelled'").run(
       payment.booking_id
     );
 
     return { ...payment, status: "paid", expires_at: null };
-  })();
+  });
 }
 
-export function refundPayment(bookingId: number): boolean {
+export async function refundPayment(bookingId: number): Promise<boolean> {
   const db = getDb();
-  const payment = getPaymentForBooking(bookingId);
+  const payment = await getPaymentForBooking(bookingId);
   if (!payment || payment.status !== "paid") return false;
 
-  db.prepare(
+  await db.prepare(
     "UPDATE payments SET status = 'refunded', refunded_at = datetime('now') WHERE id = ? AND status = 'paid'"
   ).run(payment.id);
   return true;
 }
 
 /** Marks unpaid intents past their window so the UI can stop offering them. */
-export function expireStalePayments(): number {
-  const info = getDb()
+export async function expireStalePayments(): Promise<number> {
+  const info = await getDb()
     .prepare(
       `UPDATE payments SET status = 'expired'
        WHERE status = 'requires_payment' AND expires_at IS NOT NULL
@@ -266,9 +266,9 @@ export function verifyWebhookSignature(
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-export function applyWebhookEvent(event: WebhookEvent): { ok: boolean; note: string } {
+export async function applyWebhookEvent(event: WebhookEvent): Promise<{ ok: boolean; note: string }> {
   if (event.type === "payment.paid") {
-    const payment = completePayment(event.data.reference);
+    const payment = await completePayment(event.data.reference);
     if (!payment) return { ok: false, note: "unknown reference" };
     // A payment that lands after the guest cancelled is refunded on the spot.
     return {
@@ -282,14 +282,14 @@ export function applyWebhookEvent(event: WebhookEvent): { ok: boolean; note: str
 
   if (event.type === "payment.refunded") {
     const db = getDb();
-    const payment = getPaymentByReference(event.data.reference);
+    const payment = await getPaymentByReference(event.data.reference);
     if (!payment) return { ok: false, note: "unknown reference" };
 
-    const booking = db
+    const booking = await db
       .prepare("SELECT id, total_cents FROM bookings WHERE id = ?")
       .get<{ id: number; total_cents: number }>(payment.booking_id);
 
-    db.prepare("UPDATE payments SET status = 'refunded', refunded_at = datetime('now') WHERE id = ?").run(
+    await db.prepare("UPDATE payments SET status = 'refunded', refunded_at = datetime('now') WHERE id = ?").run(
       payment.id
     );
 
@@ -297,7 +297,7 @@ export function applyWebhookEvent(event: WebhookEvent): { ok: boolean; note: str
     // not a cancellation, so the booking stays as it is.
     const full = !booking || payment.amount_cents >= booking.total_cents;
     if (full) {
-      db.prepare("UPDATE bookings SET status = 'cancelled' WHERE id = ?").run(payment.booking_id);
+      await db.prepare("UPDATE bookings SET status = 'cancelled' WHERE id = ?").run(payment.booking_id);
       return { ok: true, note: `refunded ${payment.reference}` };
     }
 
@@ -307,9 +307,9 @@ export function applyWebhookEvent(event: WebhookEvent): { ok: boolean; note: str
     };
   }
 
-  const payment = getPaymentByReference(event.data.reference);
+  const payment = await getPaymentByReference(event.data.reference);
   if (!payment) return { ok: false, note: "unknown reference" };
-  getDb().prepare("UPDATE payments SET status = 'expired' WHERE id = ?").run(payment.id);
+  await getDb().prepare("UPDATE payments SET status = 'expired' WHERE id = ?").run(payment.id);
   return { ok: true, note: `expired ${payment.reference}` };
 }
 
@@ -363,11 +363,11 @@ export async function createStripeCheckout(params: {
 }
 
 /** Webhooks identify the booking, not the payment row, so resolve it here. */
-export function completePaymentForBookingCode(code: string): Payment | null {
-  const booking = getDb()
+export async function completePaymentForBookingCode(code: string): Promise<Payment | null> {
+  const booking = await getDb()
     .prepare("SELECT id FROM bookings WHERE code = ?")
     .get<{ id: number }>(code);
   if (!booking) return null;
-  const payment = getPaymentForBooking(booking.id);
-  return payment ? completePayment(payment.reference) : null;
+  const payment = await getPaymentForBooking(booking.id);
+  return payment ? await completePayment(payment.reference) : null;
 }

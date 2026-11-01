@@ -31,7 +31,7 @@ export async function createBookingAction(formData: FormData) {
   if (!user) redirect(`/login?next=${encodeURIComponent(back)}`);
   if (!ISO_DATE.test(checkIn) || !ISO_DATE.test(checkOut)) redirect(`${back}&error=dates`);
 
-  const result = createBooking({ roomId, checkIn, checkOut, guests }, user.id, await readVisitor());
+  const result = await createBooking({ roomId, checkIn, checkOut, guests }, user.id, (await readVisitor()));
   if (!result.ok) redirect(`${back}&error=${encodeURIComponent(result.error)}`);
 
   revalidatePath("/trips");
@@ -47,13 +47,13 @@ export async function payBookingAction(formData: FormData) {
   const code = String(formData.get("code") ?? "");
   if (!user) redirect(`/login?next=${encodeURIComponent(`/booking/${code}`)}`);
 
-  const booking = getBookingByCode(code);
+  const booking = await getBookingByCode(code);
   if (!booking || (booking.traveller_id !== user.id && user.role !== "admin")) {
     redirect("/trips");
   }
   if (booking.status === "cancelled" || booking.status === "confirmed") redirect(`/booking/${code}`);
 
-  const intent = openPayment(booking.id, booking.code, booking.total_cents);
+  const intent = await openPayment(booking.id, booking.code, booking.total_cents);
 
   if (stripeConfigured()) {
     const base = (await origin()) ?? "";
@@ -69,7 +69,7 @@ export async function payBookingAction(formData: FormData) {
     redirect(`/booking/${booking.code}?payment=failed`);
   }
 
-  markBookingPaid(code, user.id);
+  await markBookingPaid(code, user.id);
   revalidatePath(`/booking/${code}`);
   revalidatePath("/trips");
   redirect(`/booking/${code}?paid=1`);
@@ -83,7 +83,7 @@ export async function cancelBookingAction(formData: FormData) {
   const back = rawBack.startsWith("/") && !rawBack.startsWith("//") ? rawBack : "/trips";
   if (!user) redirect(`/login?next=${encodeURIComponent(back)}`);
 
-  cancelBooking(code, user.id);
+  await cancelBooking(code, user.id);
   revalidatePath(`/booking/${code}`);
   revalidatePath("/trips");
   redirect(back);
@@ -95,10 +95,10 @@ export async function refreshPaymentAction(formData: FormData) {
   const code = String(formData.get("code") ?? "");
   if (!user) redirect(`/login?next=${encodeURIComponent(`/booking/${code}`)}`);
 
-  const booking = getBookingByCode(code);
+  const booking = await getBookingByCode(code);
   if (booking && booking.traveller_id === user.id) {
-    const payment = getPaymentForBooking(booking.id);
-    if (payment) openPayment(booking.id, booking.code, booking.total_cents);
+    const payment = await getPaymentForBooking(booking.id);
+    if (payment) await openPayment(booking.id, booking.code, booking.total_cents);
   }
 
   revalidatePath(`/booking/${code}`);

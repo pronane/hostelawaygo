@@ -52,9 +52,9 @@ export type Digest = DigestTrip & {
 };
 
 /** Only live cities, verified addresses, and trips that haven't finished. */
-export function digestAudience(withinDays = 7): DigestTrip[] {
+export async function digestAudience(withinDays = 7): Promise<DigestTrip[]> {
   const today = todayISO();
-  return getDb()
+  return (await getDb()
     .prepare(
       `SELECT t.id AS travellerId, t.name, t.email,
          tr.id AS tripId, tr.city, COALESCE(c.name, tr.city) AS cityName,
@@ -67,7 +67,7 @@ export function digestAudience(withinDays = 7): DigestTrip[] {
          AND tr.ends_on >= @today AND tr.starts_on <= @horizon
        ORDER BY tr.starts_on ASC, t.id ASC`
     )
-    .all<Omit<DigestTrip, "key">>({ today, horizon: addDays(today, withinDays) })
+    .all<Omit<DigestTrip, "key">>({ today, horizon: addDays(today, withinDays) }))
     .map((row) => ({ ...row, key: `${row.city}:${row.startsOn}` }));
 }
 
@@ -79,8 +79,8 @@ export function digestAlreadySent(trip: DigestTrip): boolean {
   );
 }
 
-function recordSend(trip: DigestTrip, status: "sent" | "unsent" | "empty", note = ""): void {
-  getDb()
+async function recordSend(trip: DigestTrip, status: "sent" | "unsent" | "empty", note = ""): Promise<void> {
+  await getDb()
     .prepare(
       `INSERT INTO digest_sends (traveller_id, trip_key, sent_at, status, note)
        VALUES (@travellerId, @key, datetime('now'), @status, @note)
@@ -94,12 +94,12 @@ const daysBetween = (from: string, to: string): number =>
   Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
 
 /** The digest for one trip, or null when there is nothing worth sending. */
-export function buildDigest(trip: DigestTrip): Digest | null {
+export async function buildDigest(trip: DigestTrip): Promise<Digest | null> {
   const today = todayISO();
   const from = trip.startsOn > today ? trip.startsOn : today;
   if (from > trip.endsOn) return null;
 
-  const events = getCityEvents(trip.city, from, trip.endsOn, trip.travellerId)
+  const events = (await getCityEvents(trip.city, from, trip.endsOn, trip.travellerId))
     .filter((e) => !e.isJoined && e.open_to_all === 1)
     .slice(0, 8);
 
@@ -208,7 +208,7 @@ export async function runDigest({
   sent: number;
   results: DigestResult[];
 }> {
-  const audience = digestAudience(withinDays);
+  const audience = await digestAudience(withinDays);
   const results: DigestResult[] = [];
   let sent = 0;
 
@@ -218,10 +218,10 @@ export async function runDigest({
       continue;
     }
 
-    const digest = buildDigest(trip);
+    const digest = await buildDigest(trip);
     if (!digest) {
       results.push({ trip, status: "empty", note: "nothing on in the window — staying quiet", digest: null });
-      if (!dryRun) recordSend(trip, "empty", "nothing on in the window");
+      if (!dryRun) await recordSend(trip, "empty", "nothing on in the window");
       continue;
     }
 
@@ -231,7 +231,7 @@ export async function runDigest({
     }
 
     const { sent: ok } = await sendMail(trip.email, digest.subject, digest.text, digest.html);
-    recordSend(trip, ok ? "sent" : "unsent", ok ? digest.subject : "no mail provider configured");
+    await recordSend(trip, ok ? "sent" : "unsent", ok ? digest.subject : "no mail provider configured");
     if (ok) sent += 1;
     results.push({ trip, status: ok ? "sent" : "unsent", note: ok ? digest.subject : "no mail provider", digest });
   }
@@ -249,7 +249,7 @@ export type DigestSendRow = {
   note: string;
 };
 
-export function recentDigestSends(limit = 20): DigestSendRow[] {
+export async function recentDigestSends(limit = 20): Promise<DigestSendRow[]> {
   return getDb()
     .prepare(
       `SELECT d.id, t.name, t.email, d.trip_key, d.sent_at, d.status, d.note

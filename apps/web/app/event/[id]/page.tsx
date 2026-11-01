@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: Props) {
   const { id } = await params;
   // getEvent with no viewer already hides guests-only nights, so a null here
   // means either "doesn't exist" or "not yours" — neither belongs in an index.
-  const event = getEvent(Number(id), null);
+  const event = await getEvent(Number(id), null);
   if (!event) return { title: "Event not found", robots: { index: false, follow: false } };
 
   const description = `${formatDay(event.starts_at.slice(0, 10))} at ${timeOf(event.starts_at)} · ${event.venue}`;
@@ -46,14 +46,14 @@ export default async function EventPage({ params, searchParams }: Props) {
   if (!Number.isInteger(eventId)) notFound();
 
   const user = await getCurrentUser();
-  const event = getEvent(eventId, user?.id ?? null);
+  const event = await getEvent(eventId, user?.id ?? null);
   if (!event) notFound();
 
-  const who = getWhoIsGoing(event.id);
-  const messages = getMessages(event.id, user?.id ?? null);
+  const who = await getWhoIsGoing(event.id);
+  const messages = await getMessages(event.id, user?.id ?? null);
   // Cities are rows now, not a constant: a city opened in the console has to
   // work here without a deploy.
-  const city = getCity(event.city);
+  const city = await getCity(event.city);
   const cityName = city?.name ?? event.city;
   const venueName = event.venue.split(" · ")[0];
   const soloLine =

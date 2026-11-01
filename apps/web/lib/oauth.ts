@@ -221,7 +221,7 @@ export type BeginResult = { url: string; state: string };
  * to. `state` is the CSRF token, `nonce` binds the id_token to this request,
  * `verifier` proves the token exchange comes from the same client.
  */
-export function beginAuth(id: string, request: Request, next: string): BeginResult {
+export async function beginAuth(id: string, request: Request, next: string): Promise<BeginResult> {
   const origin = publicOrigin(request);
   const config = getProvider(id, origin);
   if (!config) throw new OAuthError("provider", "That sign-in provider isn't available.");
@@ -231,7 +231,7 @@ export function beginAuth(id: string, request: Request, next: string): BeginResu
   const { verifier, challenge } = createPkce();
   const now = new Date();
 
-  getDb()
+  await getDb()
     .prepare(
       `INSERT INTO oauth_states (id, provider, verifier, nonce, next, created_at, expires_at)
        VALUES (@id, @provider, @verifier, @nonce, @next, @createdAt, @expiresAt)`
@@ -277,12 +277,12 @@ type StateRow = {
   expires_at: string;
 };
 
-function takeState(state: string | null): StateRow {
+async function takeState(state: string | null): Promise<StateRow> {
   if (!state) throw new OAuthError("state", "That sign-in link is missing its state.");
   const db = getDb();
-  const row = db.prepare("SELECT * FROM oauth_states WHERE id = ?").get<StateRow>(state);
+  const row = await db.prepare("SELECT * FROM oauth_states WHERE id = ?").get<StateRow>(state);
   // Single use, whatever happens next.
-  db.prepare("DELETE FROM oauth_states WHERE id = ?").run(state);
+  await db.prepare("DELETE FROM oauth_states WHERE id = ?").run(state);
   if (!row) throw new OAuthError("state", "That sign-in attempt is unknown or was already used.");
   if (new Date(row.expires_at).getTime() < Date.now()) {
     throw new OAuthError("state", "That sign-in took too long. Try again.");
@@ -383,16 +383,16 @@ export type AuthResult = { userId: number; created: boolean; linked: boolean; em
  *      vouches for the address);
  *   3. nobody → create a traveller, already verified, with no password.
  */
-export function resolveAccount(config: ProviderConfig, identity: Identity): AuthResult {
+export async function resolveAccount(config: ProviderConfig, identity: Identity): Promise<AuthResult> {
   const db = getDb();
   if (!identity.subject) throw new OAuthError("token", "the provider didn't return a user id");
 
-  const known = db
+  const known = await db
     .prepare("SELECT traveller_id FROM identities WHERE provider = ? AND subject = ?")
     .get<{ traveller_id: number }>(config.id, identity.subject);
 
   if (known) {
-    db.prepare("UPDATE identities SET email = ?, name = ?, linked_at = ? WHERE provider = ? AND subject = ?").run(
+    await db.prepare("UPDATE identities SET email = ?, name = ?, linked_at = ? WHERE provider = ? AND subject = ?").run(
       identity.email,
       identity.name,
       new Date().toISOString(),
@@ -409,7 +409,7 @@ export function resolveAccount(config: ProviderConfig, identity: Identity): Auth
     );
   }
 
-  const existing = db
+  const existing = await db
     .prepare("SELECT id, email_verified_at FROM travellers WHERE lower(email) = ?")
     .get<{ id: number; email_verified_at: string | null }>(identity.email);
 
@@ -420,7 +420,7 @@ export function resolveAccount(config: ProviderConfig, identity: Identity): Auth
         `${config.label} hasn't confirmed ${identity.email}, so it can't be used to sign in to an existing account. Use your password instead.`
       );
     }
-    db.prepare(
+    await db.prepare(
       `INSERT INTO identities (traveller_id, provider, subject, email, name, linked_at)
        VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT(provider, subject) DO UPDATE SET email = excluded.email, name = excluded.name`
@@ -429,7 +429,7 @@ export function resolveAccount(config: ProviderConfig, identity: Identity): Auth
     // Signing in with a provider proves the address, so an unverified account
     // becomes verified rather than sending someone a link they don't need.
     if (!existing.email_verified_at) {
-      db.prepare("UPDATE travellers SET email_verified_at = ? WHERE id = ?").run(new Date().toISOString(), existing.id);
+      await db.prepare("UPDATE travellers SET email_verified_at = ? WHERE id = ?").run(new Date().toISOString(), existing.id);
     }
     return { userId: existing.id, created: false, linked: true, email: identity.email };
   }
@@ -441,15 +441,15 @@ export function resolveAccount(config: ProviderConfig, identity: Identity): Auth
   const name = identity.name || identity.email.split("@")[0].replace(/[._-]+/g, " ");
   const now = new Date().toISOString();
 
-  const create = db.transaction(() => {
-    const info = db
+  const userId = await db.transaction(async () => {
+    const info = await db
       .prepare(
         `INSERT INTO travellers (name, initials, flag, colour, solo, languages, email, password_hash, role, email_verified_at)
          VALUES (@name, @initials, '🌍', '#FFD9A0', 1, 'English', @email, NULL, 'traveller', @verifiedAt)`
       )
       .run({ name, email: identity.email, initials: INITIALS(name), verifiedAt: now });
 
-    db.prepare(
+    await db.prepare(
       `INSERT INTO identities (traveller_id, provider, subject, email, name, linked_at)
        VALUES (?, ?, ?, ?, ?, ?)`
     ).run(Number(info.lastInsertRowid), config.id, identity.subject, identity.email, identity.name, now);
@@ -457,7 +457,6 @@ export function resolveAccount(config: ProviderConfig, identity: Identity): Auth
     return Number(info.lastInsertRowid);
   });
 
-  const userId = create();
   return { userId, created: true, linked: false, email: identity.email };
 }
 
@@ -474,18 +473,18 @@ export async function finishAuth(id: string, request: Request, input: CallbackIn
     throw new OAuthError("denied", input.error === "access_denied" ? "Sign-in was cancelled." : `The provider said: ${input.error}`);
   }
 
-  const state = takeState(input.state);
+  const state = await takeState(input.state);
   if (state.provider !== config.id) throw new OAuthError("state", "That sign-in was for a different provider.");
   if (!input.code) throw new OAuthError("exchange", "The provider didn't return a code.");
 
   const tokens = await exchangeCode(config, input.code, state.verifier, origin);
   const identity = await claimsFor(config, tokens, state.nonce);
-  const result = resolveAccount(config, identity);
+  const result = await resolveAccount(config, identity);
 
   return { userId: result.userId, next: safeNext(state.next), created: result.created, linked: result.linked };
 }
 
-export function linkedProviders(travellerId: number): { provider: string; email: string; linked_at: string }[] {
+export async function linkedProviders(travellerId: number): Promise<{ provider: string; email: string; linked_at: string }[]> {
   return getDb()
     .prepare("SELECT provider, email, linked_at FROM identities WHERE traveller_id = ? ORDER BY linked_at")
     .all<{ provider: string; email: string; linked_at: string }>(travellerId);

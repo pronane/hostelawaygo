@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 /**
- * Where the SQLite file lives — and whether it will still be there later.
+ * Which database this process is talking to — and whether it will still be
+ * there later.
  *
  * The app is a long-running process with a file on disk. A serverless platform
  * makes the deployment directory read-only and hands you `/tmp` for the life of
@@ -11,18 +12,24 @@ import { dirname, join } from "node:path";
  * start rebuilds and reseeds it, and two instances are two different databases.
  * That is a demo, not a deployment — see docs/deploy.md.
  *
- * The three cases, in order:
- *   1. `AWAY_DB_PATH` — used verbatim. If it cannot be written we stop, because
+ * The cases, in order:
+ *   1. `TURSO_DATABASE_URL` (+ `TURSO_AUTH_TOKEN`) — Turso. Real persistence on
+ *      a platform with no disk, which is the only way to keep data on Vercel.
+ *   2. `AWAY_DB_PATH` — used verbatim. If it cannot be written we stop, because
  *      an explicit path on a server means a mounted disk, and silently writing
  *      somewhere else is how you lose a database without noticing.
- *   2. a serverless runtime — `/tmp`, with a warning in the log.
- *   3. anywhere else — `data/away.db` next to the app, falling back to `/tmp`
+ *   3. a serverless runtime — `/tmp`, with a warning in the log.
+ *   4. anywhere else — `data/away.db` next to the app, falling back to `/tmp`
  *      if that directory turns out to be read-only.
  */
 
 export type Storage = {
-  /** Absolute path of the SQLite file. */
+  /** `turso` for the hosted database, `file` for a SQLite file on disk. */
+  kind: "turso" | "file";
+  /** The `libsql://` URL, or the absolute path of the SQLite file. */
   path: string;
+  /** Auth token, only for `kind: "turso"`. */
+  token?: string;
   /** True when the file will not survive the instance. */
   ephemeral: boolean;
   /** Why this path, in three or four words, for /api/health and the logs. */
@@ -62,12 +69,45 @@ const warnOnce = (message: string) => {
   console.warn(message);
 };
 
+const TURSO_SCHEMES = ["libsql:", "https:", "http:", "ws:", "wss:"];
+
+function tursoStorage(): Storage | null {
+  const url = process.env.TURSO_DATABASE_URL?.trim();
+  if (!url) return null;
+
+  if (!TURSO_SCHEMES.some((scheme) => url.startsWith(scheme))) {
+    throw new Error(
+      `TURSO_DATABASE_URL is "${url}". It has to be the libsql:// URL Turso gives you ` +
+        `(or an https:// one), not a file path. Copy it from the dashboard or from ` +
+        `\`turso db show --url <db>\`.`
+    );
+  }
+
+  const token = process.env.TURSO_AUTH_TOKEN?.trim() || undefined;
+  if (!token && url.startsWith("libsql:")) {
+    warnOnce(
+      "[db] TURSO_DATABASE_URL is set without TURSO_AUTH_TOKEN. A remote database needs both; " +
+        "copy the token with `turso db tokens create <db>`."
+    );
+  }
+
+  return { kind: "turso", path: url, token, ephemeral: false, reason: "Turso (libSQL)" };
+}
+
 function resolveStorage(): Storage {
+  const turso = tursoStorage();
+  if (turso) {
+    if (process.env.AWAY_DB_PATH?.trim()) {
+      warnOnce("[db] Turso is configured, so AWAY_DB_PATH is ignored (the database is in Turso).");
+    }
+    return turso;
+  }
+
   const configured = process.env.AWAY_DB_PATH?.trim();
 
   if (configured) {
     if (writableDirectory(configured)) {
-      return { path: configured, ephemeral: false, reason: "AWAY_DB_PATH" };
+      return { kind: "file", path: configured, ephemeral: false, reason: "AWAY_DB_PATH" };
     }
     throw new Error(
       `AWAY_DB_PATH is "${configured}" but that directory cannot be created (read-only, or not mounted). ` +
@@ -81,12 +121,12 @@ function resolveStorage(): Storage {
       `[db] serverless runtime: using ${path}. The database is rebuilt on every cold start ` +
         `and each instance has its own — see docs/deploy.md#vercel`
     );
-    return { path, ephemeral: true, reason: "serverless filesystem" };
+    return { kind: "file", path, ephemeral: true, reason: "serverless filesystem" };
   }
 
   const beside = join(process.cwd(), "data", "away.db");
   if (writableDirectory(beside)) {
-    return { path: beside, ephemeral: false, reason: "next to the app" };
+    return { kind: "file", path: beside, ephemeral: false, reason: "next to the app" };
   }
 
   const fallback = tmpPath();
@@ -95,7 +135,7 @@ function resolveStorage(): Storage {
     `[db] ${dirname(beside)} is not writable here, so the database is ${fallback}. ` +
       `It will not survive this instance — see docs/deploy.md.`
   );
-  return { path: fallback, ephemeral: true, reason: "read-only filesystem" };
+  return { kind: "file", path: fallback, ephemeral: true, reason: "read-only filesystem" };
 }
 
 export const storage: Storage = resolveStorage();

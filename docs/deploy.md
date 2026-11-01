@@ -13,8 +13,9 @@ about whether that file survives a restart.
 | **Render demo** | `render.demo.yaml` — free instance, no disk. The database is rebuilt from the seed every time the instance restarts, so it is a demo and nothing more. | — |
 | **Render proper** | — | `render.yaml` — Starter ($7/mo) + 1 GB disk ($0.25/mo). Data persists. |
 | **Fly.io / Railway / VPS** | — | `Dockerfile` in the repo root; mount a volume at `/data`. |
-| **Vercel** | — | Runs, with an **ephemeral** database in `/tmp`: it reseeds on every cold start and each instance has its own copy. Good for showing the UI, not for keeping bookings — see [Vercel](#vercel). |
-| **Netlify / Cloudflare** | ✗ | No writable disk at all, so the app cannot even start its database. Postgres or Turso first — a code change, not a config change. |
+| **Vercel + Turso** | Turso's free tier | The real thing: no disk needed, because the database is in Turso. `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` and nothing else — see [Turso](#turso). |
+| **Vercel alone** | ✓ | Runs, with an **ephemeral** database in `/tmp`: it reseeds on every cold start and each instance has its own copy. Good for showing the UI, not for keeping bookings — see [Vercel](#vercel). |
+| **Netlify / Cloudflare** | ✗ | No writable disk at all, so the app cannot even start its database. Turso or Postgres first — with Turso that is now two environment variables, not a code change. |
 
 ## Render, in full
 
@@ -68,15 +69,102 @@ later does nothing; use `npm run admin:create` (see below).
 - **Scaling.** You can't scale out with a disk; you get one instance. Fine at
   Lisbon scale, and the reason to move to Postgres later is concurrency, not size.
 
+## Turso
+
+Turso is SQLite as a hosted service: same SQL, same schema, same queries, but
+reached over HTTP instead of through a file. That is the difference between
+"the app runs on Vercel" and "the app works on Vercel", because a serverless
+platform has no disk to put a database on.
+
+```bash
+turso db create away                       # or click through the dashboard
+turso db show away --url                   # libsql://away-….turso.io
+turso db tokens create away                # the auth token
+```
+
+Then set two environment variables wherever the app runs and restart:
+
+```bash
+TURSO_DATABASE_URL=libsql://away-….turso.io
+TURSO_AUTH_TOKEN=…
+```
+
+What happens on the first request: the app creates the schema and seeds the
+demo content **in Turso**. That is a few hundred statements over the network, so
+expect a few seconds on that one request — after that every boot finds
+`schema_version` already there and skips it. If the first request is killed
+half-way (a platform timeout, a closed laptop), nothing is corrupt: the version
+row is written last, so the next start drops and reseeds.
+
+`/api/health` then says:
+
+```json
+"database": "turso", "storage": "persistent", "storageWhy": "Turso (libSQL)"
+```
+
+Rules and consequences:
+
+- **`TURSO_DATABASE_URL` wins over `AWAY_DB_PATH`.** If both are set the app uses
+  Turso and says so in the log; a stale `AWAY_DB_PATH` cannot quietly point a
+  deployment at a throwaway file.
+- **Every query is a network round trip**, which is why the data layer is async
+  end to end (`apps/web/lib/sql.ts`). Pages that used to be synchronous are
+  `async` now; that is the cost of not having Postgres, paid once.
+- **Two implementations, one interface.** `lib/sqlite.ts` (a file) and
+  `lib/turso.ts` (HTTP) both satisfy `Db`; `lib/db.ts` picks one and migrates it.
+  Local development, Docker and Render are unchanged and still need no account.
+- **Transactions are real.** `db.transaction()` opens a server-side transaction
+  in Turso, and statements issued inside it are routed there per request
+  (`AsyncLocalStorage`), so a booking and its payment still commit together.
+- **`node scripts/verify-deploy.mjs https://your-app`** now also reports which
+  driver answered.
+
+### Without an account
+
+`npm run test:turso` boots a stand-in that speaks Turso's HTTP protocol
+(`scripts/turso-mock.mjs`, executing the SQL with `node:sqlite`), points the app
+at it, and checks that the schema and seed land, the pages render, and the data
+is still there after a restart. No keys, no network:
+
+```bash
+npm run build && npm run test:turso
+```
+
 ## Vercel
 
-Vercel runs the app, but it cannot keep its database. A Vercel function gets a
-read-only deployment directory and a `/tmp` that belongs to one instance and
-disappears with it.
+Two ways to run on Vercel, and only one of them keeps data.
+
+### With Turso (do this if you want accounts and bookings)
+
+1. **Project → Settings → General → Root Directory: `apps/web`.** Node comes from
+   `apps/web/.node-version` (22.22.3); `node:sqlite` and the Turso client both
+   need 22.5+.
+2. Create the database in [Turso](#turso) and add `TURSO_DATABASE_URL` +
+   `TURSO_AUTH_TOKEN` to the Vercel project's environment variables.
+3. Add `APP_URL` = your Vercel URL, and — for a demo — `DEMO_LOGIN=1` and
+   `AWAY_DEMO_ACCOUNTS=1` so `/login` can sign anyone in with one click.
+   Optionally `OAUTH_MOCK=1` + `OAUTH_MOCK_ALLOW_PROD=1` for the social buttons.
+4. **Do not set `AWAY_DB_PATH`.** Turso wins over it anyway, but there is no file
+   to point at.
+5. Deploy, open `https://…/api/health`, and check
+   `"database": "turso"` and `"storage": "persistent"`.
+
+The first request seeds Turso and takes a few seconds. Sessions, bookings and
+sign-ups then survive cold starts, and every function instance sees the same
+data — the two problems that made the file-backed version a demo.
+
+Still not portable to Vercel: the periodic jobs. `npm run ingest`, `npm run
+digest` and the outreach bot are processes, and Vercel has nowhere to run them;
+point them at the same `TURSO_*` variables from a laptop or a scheduled Render
+job and they work.
+
+### Without Turso (a URL that shows the product, nothing more)
+
+A Vercel function gets a read-only deployment directory and a `/tmp` that
+belongs to one instance and disappears with it.
 
 > **Seeing `ENOENT: mkdir '/var/task/apps/web/data'`?** That is a deployment from
-> before this was handled. Redeploy from `master` — no settings to change, the
-> app now writes to `/tmp` on its own and says so in `/api/health`.
+> before this was handled. Redeploy from `master`.
 
 So:
 
@@ -91,29 +179,9 @@ So:
 - `/api/health` reports `"storage": "ephemeral"`, and
   `node scripts/verify-deploy.mjs https://…` prints a warning.
 
-If that is what you want — a URL that shows the product, no cost, no upkeep —
-set it up like this:
-
-1. **Project → Settings → General → Root Directory: `apps/web`.** The repo is a
-   monorepo and the app is not at the root. Node comes from `apps/web/.node-version`
-   (22.22.3) and `engines` in `apps/web/package.json`; `node:sqlite` needs 22.5+.
-2. Environment variables: `APP_URL` = your Vercel URL, `DEMO_LOGIN=1`,
-   `AWAY_DEMO_ACCOUNTS=1` (so `/login` can sign anyone in with one click).
-   Optionally `OAUTH_MOCK=1` + `OAUTH_MOCK_ALLOW_PROD=1` for the social buttons.
-3. **Do not set `AWAY_DB_PATH`.** If it is set, the app takes it literally and
-   refuses to start when the directory is read-only, which is the correct
-   behaviour for a mounted disk and the wrong one here. Unset it.
-4. Deploy, then check `https://…/api/health` says `schema 8` and
-   `storage: "ephemeral"`.
-
-The moment you want a real hostel, an admin account that survives, or an email
-that goes out on a schedule, move to [Render](#render-in-full) or the
-[Dockerfile](#docker-fly-railway-a-vps-your-own-machine): same repository, same
-environment variables, plus one mounted directory.
-
-Scripts are the other casualty: `npm run ingest`, `npm run digest` and the
-outreach bot are processes, not pages, and Vercel has nowhere to run them. They
-work on Render's shell, in Docker, or on your laptop against the same database.
+Set it up with Root Directory `apps/web`, `APP_URL`, `DEMO_LOGIN=1`,
+`AWAY_DEMO_ACCOUNTS=1`, and no `AWAY_DB_PATH`. The moment you want a real
+hostel, add Turso: same repository, two variables.
 
 ## Anywhere else
 
@@ -175,6 +243,7 @@ set — never as a public web service.
 - [ ] A backup of `away.db` you have actually restored once
 - [ ] `OUTREACH_POSTAL_ADDRESS` set if the bot will ever send real mail
 - [ ] `storage: "persistent"` in `/api/health` — if it says `ephemeral`, this is a demo, not a deployment
+- [ ] If you are on Turso: `database: "turso"` in `/api/health`, and a backup you have restored once (`turso db shell away .dump > away.sql`)
 
 ## The limit that will bite: schema upgrades
 
@@ -199,6 +268,10 @@ migration story (or Postgres) is a separate piece of work.
 | Build fails on Render | Node too old — `.node-version` pins 22.22.3, and `NODE_VERSION` is set in both blueprints |
 | First request after a quiet period is slow | free instances sleep; upgrade to Starter |
 | `ENOENT: mkdir …/data` at request time | the deployment directory is read-only — that is Vercel. The app falls back to `/tmp`; if you set `AWAY_DB_PATH` yourself, unset it or point it at a real disk |
+| `/api/health` says `database: "sqlite"` on Vercel | `TURSO_DATABASE_URL` is missing from the project's environment variables, or was added after the deployment — redeploy, env changes are not always picked up by preview builds |
+| `TURSO_DATABASE_URL is "…"` at boot | it is not a `libsql://` or `https://` URL — copy it from `turso db show --url`, not the CLI's local file |
+| Turso rejects the connection (`401`) | `TURSO_AUTH_TOKEN` is missing or was rotated: `turso db tokens create <db>` makes a new one |
+| First request after pointing at Turso is slow | it is seeding the database over the network — a few seconds, once. If it dies half-way the next request rebuilds |
 | `redirect_uri_mismatch` from Google | `APP_URL` doesn't match the URI registered with the provider, character for character |
 | Sign-in works but nobody can approve hostels | the bootstrap admin never ran (wrong env at first boot) — `npm run admin:create -- you@example.com` |
 

@@ -1,4 +1,4 @@
-import type { Db } from "./sqlite";
+import type { Db } from "./sql";
 import { SCHEMA_VERSION } from "./schema";
 import { hashPassword } from "./password";
 import { demoAccountsEnabled } from "./flags";
@@ -33,10 +33,10 @@ const initialsOf = (name: string) =>
     .slice(0, 2)
     .toUpperCase();
 
-export function seed(db: Db): void {
+export async function seed(db: Db): Promise<void> {
   const today = todayISO();
 
-  const run = db.transaction(() => {
+  await db.transaction(async () => {
     /* cities */
     const insCity = db.prepare(
       `INSERT INTO cities (slug, name, country, tz, emoji, intro, lat, lng, status, launch_on)
@@ -47,7 +47,7 @@ export function seed(db: Db): void {
       // A planned city has no record yet: the console shows it as the first
       // gate still open, which is the honest state of a city nobody has visited.
       const planned = c.status === "planned";
-      insCity.run({
+      await insCity.run({
         slug: c.slug,
         name: c.name,
         country: c.country,
@@ -70,7 +70,7 @@ export function seed(db: Db): void {
     const hostelIdByName = new Map<string, number>();
     for (const h of HOSTELS) {
       const point = HOSTEL_COORDS[h.slug] ?? CITY_CENTRE[h.city] ?? CITY_CENTRE.lisbon;
-      const info = insHostel.run({
+      const info = await insHostel.run({
         slug: h.slug,
         city: h.city,
         name: h.name,
@@ -86,7 +86,7 @@ export function seed(db: Db): void {
     }
 
     /* one hostel that applied through /partner and is waiting on ops */
-    const pending = db
+    const pending = await db
       .prepare(
         `INSERT INTO hostels (slug, city, name, area, description, rating, price_from_cents,
            lat, lng, status, contact_email, applied_at, note, beds)
@@ -110,7 +110,7 @@ export function seed(db: Db): void {
     for (const h of HOSTELS) {
       const hostelId = hostelIdBySlug.get(h.slug)!;
       for (const room of ROOM_TEMPLATES(h.priceFrom)) {
-        insRoom.run(hostelId, room.name, room.kind, room.beds, room.price_cents);
+        await insRoom.run(hostelId, room.name, room.kind, room.beds, room.price_cents);
       }
     }
 
@@ -121,7 +121,7 @@ export function seed(db: Db): void {
     );
 
     for (const t of TRAVELLERS) {
-      insTraveller.run({
+      await insTraveller.run({
         name: t.name,
         initials: initialsOf(t.name),
         flag: t.flag,
@@ -136,14 +136,14 @@ export function seed(db: Db): void {
     }
 
     const travellerIdByName = new Map<string, number>();
-    const seeded = db.prepare("SELECT id, name FROM travellers").all<{ id: number; name: string }>();
+    const seeded = await db.prepare("SELECT id, name FROM travellers").all<{ id: number; name: string }>();
     for (const row of seeded) travellerIdByName.set(row.name, row.id);
 
     // The demo logins are a demo, not a fixture of the product — see
     // seedDemoAccounts() below, and AWAY_DEMO_ACCOUNTS in docs/deploy.md.
-    if (demoAccountsEnabled()) seedDemoAccounts(db, hostelIdBySlug, travellerIdByName);
+    if (demoAccountsEnabled()) await seedDemoAccounts(db, hostelIdBySlug, travellerIdByName);
     // A deployment gets its first real admin from the environment.
-    bootstrapAdmin(db);
+    await bootstrapAdmin(db);
 
     /* events */
     const insEvent = db.prepare(`
@@ -154,20 +154,19 @@ export function seed(db: Db): void {
         @price_cents, @source, @category, @emoji, @cover_from, @cover_to, @venue, @lat, @lng, @walk_minutes,
         @capacity, @tags, @lens, 'seed', 'seed')
     `);
-    const insJoin = db.prepare("INSERT OR IGNORE INTO joins (event_id, traveller_id) VALUES (?, ?)");
 
     const allEvents = [...EVENTS, ...EXTRA_EVENTS, ...EXTRA_PORTO_EVENTS];
     const pool = Array.from({ length: TRAVELLERS.length - 1 }, (_, i) => i + 2);
     const eventIdByTitle = new Map<string, number>();
 
-    allEvents.forEach((e, index) => {
+    for (const [index, e] of allEvents.entries()) {
       const tags = e.priceCents === 0 ? [...new Set([...e.tags, "free"])] : e.tags;
       const hostelSlug = e.hostel
         ? HOSTELS.find((h) => h.slug === e.hostel || h.name === e.hostel)?.slug
         : undefined;
       const hostelPoint = hostelSlug ? HOSTEL_COORDS[hostelSlug] : null;
       const point = hostelPoint ?? coordsForVenue(e.venue, e.city, hostelPoint);
-      const info = insEvent.run({
+      const info = await insEvent.run({
         city: e.city,
         hostel_id: e.hostel ? hostelIdByName.get(e.hostel) ?? null : null,
         title: e.title,
@@ -193,10 +192,13 @@ export function seed(db: Db): void {
       eventIdByTitle.set(e.title, eventId);
 
       const wanted = Math.min(e.seated, e.capacity ?? e.seated, pool.length);
-      for (const travellerId of pick(pool, wanted, index * 7919 + 13)) {
-        insJoin.run(eventId, travellerId);
-      }
-    });
+      await db.batch(
+        pick(pool, wanted, index * 7919 + 13).map((travellerId) => ({
+          sql: "INSERT OR IGNORE INTO joins (event_id, traveller_id) VALUES (?, ?)",
+          params: [eventId, travellerId],
+        }))
+      );
+    }
 
     /* trips for the demo traveller */
     const insTrip = db.prepare(`
@@ -204,9 +206,9 @@ export function seed(db: Db): void {
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
     const martaId = travellerIdByName.get("Marta K.") ?? 1;
-    insTrip.run(martaId, "lisbon", addDays(today, -2), addDays(today, 10),
+    await insTrip.run(martaId, "lisbon", addDays(today, -2), addDays(today, 10),
       hostelIdBySlug.get("home-lisbon") ?? null, "15:00", "10:30");
-    insTrip.run(martaId, "porto", addDays(today, 12), addDays(today, 15),
+    await insTrip.run(martaId, "porto", addDays(today, 12), addDays(today, 15),
       hostelIdBySlug.get("pilot-porto") ?? null, "14:20", "09:10");
 
     /* event chat */
@@ -218,18 +220,18 @@ export function seed(db: Db): void {
       const eventId = eventIdByTitle.get(m.eventTitle);
       const authorId = travellerIdByName.get(m.author);
       if (!eventId || !authorId) continue;
-      insMessage.run(eventId, authorId, m.body, `-${m.minutesAgo} minutes`);
+      await insMessage.run(eventId, authorId, m.body, `-${m.minutesAgo} minutes`);
     }
 
     /* one past booking so the account page isn't empty */
     const hostelId = hostelIdBySlug.get("home-lisbon")!;
-    const room = db
+    const room = await db
       .prepare("SELECT id, price_cents FROM rooms WHERE hostel_id = ? ORDER BY price_cents LIMIT 1")
       .get<{ id: number; price_cents: number }>(hostelId);
     if (room) {
       const nights = 3;
       const total = room.price_cents * nights;
-      const info = db
+      const info = await db
         .prepare(
           `INSERT INTO bookings (code, traveller_id, hostel_id, room_id, check_in, check_out,
             guests, nights, total_cents, status, created_at)
@@ -238,7 +240,7 @@ export function seed(db: Db): void {
         .run("AWY-7K2M9Q", martaId, hostelId, room.id,
           addDays(today, -2), addDays(today, 1), nights, total);
 
-      db.prepare(
+      await db.prepare(
         `INSERT INTO payments (booking_id, provider, reference, idempotency_key, amount_cents, status,
            created_at, expires_at, paid_at)
          VALUES (?, 'sandbox', ?, ?, ?, 'paid', datetime('now', '-2 days'),
@@ -257,9 +259,9 @@ export function seed(db: Db): void {
        VALUES (?, ?, ?, ?, ?, ?)`
     );
     const arrivalsHostel = hostelIdBySlug.get("home-lisbon")!;
-    const travellerIds = db
+    const travellerIds = (await db
       .prepare("SELECT id FROM travellers ORDER BY id")
-      .all<{ id: number }>()
+      .all<{ id: number }>())
       .map((r) => r.id);
     const stamp = (daysAgo: number) =>
       new Date(Date.now() - daysAgo * 86_400_000).toISOString();
@@ -274,20 +276,18 @@ export function seed(db: Db): void {
       // Only one stamped booking, because only one real booking row exists —
       // a funnel that overcounts is a funnel a hostel stops trusting.
       const booked = i === 0 ? stamp(2) : null;
-      insArrival.run(arrivalsHostel, `seed-visitor-${i}`, day, linked, joined, booked);
+      await insArrival.run(arrivalsHostel, `seed-visitor-${i}`, day, linked, joined, booked);
     }
     // The demo traveller's own booking, so the funnel and the revenue agree.
-    db.prepare(
+    await db.prepare(
       `UPDATE arrivals SET traveller_id = ?, booked_at = datetime('now', '-2 days')
        WHERE hostel_id = ? AND visitor = 'seed-visitor-0'`
     ).run(martaId, arrivalsHostel);
 
     /* meta */
-    db.prepare("INSERT INTO meta (key, value) VALUES ('schema_version', ?)").run(SCHEMA_VERSION);
-    db.prepare("INSERT INTO meta (key, value) VALUES ('seeded_on', ?)").run(today);
+    await db.prepare("INSERT INTO meta (key, value) VALUES ('schema_version', ?)").run(SCHEMA_VERSION);
+    await db.prepare("INSERT INTO meta (key, value) VALUES ('seeded_on', ?)").run(today);
   });
-
-  run();
 }
 
 /**
@@ -299,7 +299,7 @@ export function seed(db: Db): void {
  * that admin exists. Runs only when the database is created, so it never
  * overwrites a password someone has changed since.
  */
-function bootstrapAdmin(db: Db): void {
+async function bootstrapAdmin(db: Db): Promise<void> {
   const email = process.env.AWAY_BOOTSTRAP_EMAIL?.trim().toLowerCase();
   const password = process.env.AWAY_BOOTSTRAP_PASSWORD ?? "";
 
@@ -313,14 +313,14 @@ function bootstrapAdmin(db: Db): void {
 
   const name = process.env.AWAY_BOOTSTRAP_NAME?.trim() || "Ops";
   const hash = hashPassword(password);
-  const existing = db.prepare("SELECT id FROM travellers WHERE email = ?").get<{ id: number }>(email);
+  const existing = await db.prepare("SELECT id FROM travellers WHERE email = ?").get<{ id: number }>(email);
 
   if (existing) {
-    db.prepare(
+    await db.prepare(
       "UPDATE travellers SET password_hash = ?, role = 'admin', email_verified_at = datetime('now') WHERE id = ?"
     ).run(hash, existing.id);
   } else {
-    db.prepare(
+    await db.prepare(
       `INSERT INTO travellers (name, initials, flag, colour, solo, languages, email, password_hash, role, email_verified_at)
        VALUES (?, ?, '🌍', '#E7D6FF', 0, 'English', ?, ?, 'admin', datetime('now'))`
     ).run(name, initialsOf(name), email, hash);
@@ -335,11 +335,11 @@ function bootstrapAdmin(db: Db): void {
  * asks for `AWAY_DEMO_ACCOUNTS=0` (the default once NODE_ENV=production) and
  * bootstraps a real admin from the environment instead.
  */
-function seedDemoAccounts(
+async function seedDemoAccounts(
   db: Db,
   hostelIdBySlug: Map<string, number>,
   travellerIdByName: Map<string, number>
-): void {
+): Promise<void> {
   const passwordHash = hashPassword("away1234");
   const updateAccount = db.prepare(
     "UPDATE travellers SET email = @email, password_hash = @hash, role = @role, hostel_id = @hostel_id, email_verified_at = datetime('now') WHERE id = @id"
@@ -352,9 +352,9 @@ function seedDemoAccounts(
   for (const account of ACCOUNTS) {
     const hostelId = account.hostelSlug ? hostelIdBySlug.get(account.hostelSlug) ?? null : null;
     if (account.travellerIndex) {
-      const row = db.prepare("SELECT id FROM travellers WHERE name = ?").get<{ id: number }>(account.name);
+      const row = await db.prepare("SELECT id FROM travellers WHERE name = ?").get<{ id: number }>(account.name);
       if (row) {
-        updateAccount.run({
+        await updateAccount.run({
           id: row.id,
           email: account.email,
           hash: passwordHash,
@@ -364,7 +364,7 @@ function seedDemoAccounts(
       }
       continue;
     }
-    const info = insertAccount.run({
+    const info = await insertAccount.run({
       name: account.name,
       initials: initialsOf(account.name),
       flag: account.flag ?? "🌍",
