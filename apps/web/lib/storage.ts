@@ -54,6 +54,14 @@ function writableDirectory(path: string): boolean {
   }
 }
 
+/** Several server bundles can import this module; the log line should be one line. */
+const warned = globalThis as unknown as { __awayStorageWarned?: boolean };
+const warnOnce = (message: string) => {
+  if (warned.__awayStorageWarned) return;
+  warned.__awayStorageWarned = true;
+  console.warn(message);
+};
+
 function resolveStorage(): Storage {
   const configured = process.env.AWAY_DB_PATH?.trim();
 
@@ -69,7 +77,7 @@ function resolveStorage(): Storage {
 
   if (SERVERLESS) {
     const path = tmpPath();
-    console.warn(
+    warnOnce(
       `[db] serverless runtime: using ${path}. The database is rebuilt on every cold start ` +
         `and each instance has its own — see docs/deploy.md#vercel`
     );
@@ -83,7 +91,7 @@ function resolveStorage(): Storage {
 
   const fallback = tmpPath();
   mkdirSync(dirname(fallback), { recursive: true });
-  console.warn(
+  warnOnce(
     `[db] ${dirname(beside)} is not writable here, so the database is ${fallback}. ` +
       `It will not survive this instance — see docs/deploy.md.`
   );
