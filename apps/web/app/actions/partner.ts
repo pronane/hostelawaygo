@@ -33,7 +33,7 @@ export async function applyPartnerAction(formData: FormData) {
   const fail = (code: string) => redirect(`/partner?error=${code}`);
 
   if (hostelName.length < 2) fail("name");
-  if (!getCity(citySlug)) fail("city");
+  if (!await getCity(citySlug)) fail("city");
   if (area.length < 2) fail("area");
   if (description.length < 40) fail("description");
   if (!Number.isInteger(beds) || beds < 1 || beds > 2000) fail("beds");
@@ -42,7 +42,7 @@ export async function applyPartnerAction(formData: FormData) {
   if (!EMAIL.test(email)) fail("email");
   if (password.length < 8) fail("password");
 
-  const result = createPartnerApplication({
+  const result = await createPartnerApplication({
     city: citySlug,
     name: hostelName,
     area,

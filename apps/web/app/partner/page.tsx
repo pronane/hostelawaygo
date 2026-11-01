@@ -44,9 +44,9 @@ export default async function PartnerPage({
 }) {
   const { submitted, pending, error } = await searchParams;
   const user = await getCurrentUser();
-  const cities = getCities();
+  const cities = await getCities();
   const myHostel = user?.hostel_id
-    ? getAllHostels().find((h) => h.id === user.hostel_id) ?? null
+    ? (await getAllHostels()).find((h) => h.id === user.hostel_id) ?? null
     : null;
 
   const errorMessage = error

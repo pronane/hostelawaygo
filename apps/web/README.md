@@ -182,6 +182,8 @@ Imported events carry the venue's real coordinates (so walking times are correct
 | `AWAY_DEMO_ACCOUNTS` | `1` seeds the four demo logins (password `away1234`, one is an admin) even in production | on only where demo sign-in is on; **off in production** |
 | `AWAY_BOOTSTRAP_EMAIL` + `AWAY_BOOTSTRAP_PASSWORD` | creates that admin when the database is first built — the way a deployment gets its first user | no admin exists; use `npm run admin:create` |
 | `AWAY_DB_PATH` | where the SQLite file lives — a mounted volume on a server | `data/away.db`; `/tmp/away.db` on a serverless host, where nothing persists |
+| `TURSO_DATABASE_URL` | put the database in Turso instead of a file. Wins over `AWAY_DB_PATH` | — |
+| `TURSO_AUTH_TOKEN` | the token for that database | — |
 
 Webhooks are signed Stripe-style: `stripe-signature: t=<unix>,v1=<hmac-sha256 of "${t}.${body}">`, five-minute replay window, 400 on a bad or stale signature. Handlers are idempotent, so retries are safe.
 

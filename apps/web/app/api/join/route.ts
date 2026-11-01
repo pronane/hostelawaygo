@@ -23,9 +23,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "eventId is required" }, { status: 400 });
   }
 
-  if (!getEvent(eventId, user.id)) {
+  if (!(await getEvent(eventId, user.id))) {
     return NextResponse.json({ error: "Unknown event" }, { status: 404 });
   }
 
-  return NextResponse.json(toggleJoin(eventId, user.id, await readVisitor()));
+  return NextResponse.json(await toggleJoin(eventId, user.id, await readVisitor()));
 }

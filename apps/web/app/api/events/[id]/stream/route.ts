@@ -23,7 +23,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const user = await getCurrentUser();
   const me = user?.id ?? null;
   // Guests-only events are visible (and their chat readable) only to guests.
-  if (!getEvent(eventId, me)) {
+  if (!await getEvent(eventId, me)) {
     return new Response("Not found", { status: 404 });
   }
 
@@ -67,14 +67,19 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         send(`retry: 3000\n`);
         send(`event: ready\ndata: ${JSON.stringify({ eventId, cursor })}\n\n`);
 
-        tick = setInterval(() => {
-          if (request.signal.aborted) {
-            finish();
-            return;
-          }
-
+        // A poll is a database round trip now, so a slow tick must not overlap
+        // the next one and emit the same messages twice.
+        let polling = false;
+        tick = setInterval(async () => {
+          if (polling) return;
+          polling = true;
           try {
-            for (const message of getMessagesAfter(eventId, cursor, me)) {
+            if (request.signal.aborted) {
+              finish();
+              return;
+            }
+
+            for (const message of await getMessagesAfter(eventId, cursor, me)) {
               cursor = Math.max(cursor, message.id);
               send(`id: ${message.id}\nevent: message\ndata: ${JSON.stringify(message)}\n\n`);
               lastSend = Date.now();
@@ -82,6 +87,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
           } catch {
             finish();
             return;
+          } finally {
+            polling = false;
           }
 
           if (Date.now() - lastSend > HEARTBEAT_MS) {

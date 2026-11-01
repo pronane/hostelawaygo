@@ -8,7 +8,7 @@ export const metadata = { title: "Check-in", robots: { index: false, follow: fal
 /** The friend's view: first name, the plan, back-by time and live status. No sign-in. */
 export default async function SafeStatusPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const night = getSafeNight(token);
+  const night = await getSafeNight(token);
   if (!night) notFound();
   const status = statusOf(night);
   const name = night.first_name;

@@ -51,7 +51,7 @@ export async function createCityAction(formData: FormData) {
   if (!Number.isFinite(lng) || lng < -180 || lng > 180) fail("lng");
   if (lat === 0 && lng === 0) fail("lat");
 
-  const result = createCity({
+  const result = await createCity({
     slug,
     name,
     country,
@@ -77,11 +77,11 @@ export async function setCityStatusAction(formData: FormData) {
   const to = String(formData.get("to") ?? "") as CityStatus;
   if (!["planned", "opening", "live"].includes(to)) redirect("/admin/cities?error=status");
 
-  const city = getCity(slug);
+  const city = await getCity(slug);
   if (!city) redirect("/admin/cities?error=unknown");
 
   // Re-score rather than trusting whatever the page showed when it rendered.
-  const gates = launchGates(city, getCitySupply(city.slug));
+  const gates = launchGates(city, (await getCitySupply(city.slug)));
   const check = checkTransition(city, to, gates);
   if (!check.ok) {
     const blocking = gates.find((g) => !g.ok)?.key ?? "record";
@@ -89,7 +89,7 @@ export async function setCityStatusAction(formData: FormData) {
   }
 
   const launch = String(formData.get("launchOn") ?? "").trim();
-  setCityStatus(city.slug, to, ISO_DATE.test(launch) ? launch : null);
+  await setCityStatus(city.slug, to, ISO_DATE.test(launch) ? launch : null);
   revalidateCity(city.slug);
   redirect(`/admin/cities/${city.slug}?moved=${to}`);
 }
@@ -99,11 +99,11 @@ export async function setLaunchDateAction(formData: FormData) {
 
   const slug = citySlugFrom(String(formData.get("slug") ?? ""));
   const launch = String(formData.get("launchOn") ?? "").trim();
-  const city = getCity(slug);
+  const city = await getCity(slug);
   if (!city) redirect("/admin/cities?error=unknown");
   if (!ISO_DATE.test(launch)) redirect(`/admin/cities/${city.slug}?error=launch`);
 
-  setCityStatus(city.slug, city.status, launch);
+  await setCityStatus(city.slug, city.status, launch);
   revalidateCity(city.slug);
   redirect(`/admin/cities/${city.slug}?launch=${launch}`);
 }
@@ -112,7 +112,7 @@ export async function updateCityRecordAction(formData: FormData) {
   await requireAdmin("/admin/cities");
 
   const slug = citySlugFrom(String(formData.get("slug") ?? ""));
-  const city = getCity(slug);
+  const city = await getCity(slug);
   if (!city) redirect("/admin/cities?error=unknown");
 
   const name = String(formData.get("name") ?? "").trim().slice(0, 60);
@@ -132,7 +132,7 @@ export async function updateCityRecordAction(formData: FormData) {
   if (!Number.isFinite(lng) || lng < -180 || lng > 180) redirect(`${back}?error=lng`);
   if (lat === 0 && lng === 0) redirect(`${back}?error=lat`);
 
-  getDb()
+  await getDb()
     .prepare(
       `UPDATE cities SET name = @name, country = @country, tz = @tz, emoji = @emoji,
          intro = @intro, lat = @lat, lng = @lng WHERE slug = @slug`

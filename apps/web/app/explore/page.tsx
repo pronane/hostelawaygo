@@ -6,10 +6,10 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Explore" };
 
 export default async function ExplorePage() {
-  const cities = getLiveCities();
-  const hostels = getHostels();
+  const cities = await getLiveCities();
+  const hostels = await getHostels();
   // Cities in the pipeline are named, not offered: the bar is the promise.
-  const opening = getCities().filter((c) => c.status === "opening");
+  const opening = (await getCities()).filter((c) => c.status === "opening");
 
   return (
     <>

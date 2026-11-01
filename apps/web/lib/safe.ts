@@ -33,16 +33,16 @@ export function minutesOverdue(night: SafeNight, now = new Date()): number {
   return Math.max(0, Math.round((now.getTime() - new Date(night.back_by).getTime()) / 60_000));
 }
 
-export function createSafeNight(input: {
+export async function createSafeNight(input: {
   travellerId: number;
   eventId: number | null;
   plan: string;
   friendName: string;
   backBy: string;
   tz: string;
-}): string {
+}): Promise<string> {
   const token = newToken(16);
-  getDb()
+  await getDb()
     .prepare(
       `INSERT INTO safe_nights (token, traveller_id, event_id, plan, friend_name, back_by, tz, created_at)
        VALUES (@token, @me, @eventId, @plan, @friend, @backBy, @tz, @now)`
@@ -60,9 +60,9 @@ export function createSafeNight(input: {
   return token;
 }
 
-export function getSafeNight(token: string): (SafeNight & { first_name: string }) | null {
+export async function getSafeNight(token: string): Promise<(SafeNight & { first_name: string }) | null> {
   if (!/^[a-f0-9]{32}$/.test(token)) return null;
-  const row = getDb()
+  const row = await getDb()
     .prepare(
       `SELECT s.*, t.name AS traveller_name FROM safe_nights s
        JOIN travellers t ON t.id = s.traveller_id WHERE s.token = ?`
@@ -75,7 +75,7 @@ export function getSafeNight(token: string): (SafeNight & { first_name: string }
 }
 
 /** The traveller's own nights from the last two days, newest first. */
-export function getSafeNights(me: number): SafeNight[] {
+export async function getSafeNights(me: number): Promise<SafeNight[]> {
   return getDb()
     .prepare(
       `SELECT * FROM safe_nights WHERE traveller_id = ? AND created_at > ? ORDER BY created_at DESC LIMIT 10`
@@ -84,20 +84,20 @@ export function getSafeNights(me: number): SafeNight[] {
 }
 
 /** Only the owner can check in or cancel. Returns false if not theirs. */
-export function updateSafeNight(token: string, me: number, change: "home" | "cancel" | "extend"): boolean {
+export async function updateSafeNight(token: string, me: number, change: "home" | "cancel" | "extend"): Promise<boolean> {
   const db = getDb();
-  const row = db
+  const row = await db
     .prepare("SELECT id, traveller_id, back_by FROM safe_nights WHERE token = ?")
     .get<{ id: number; traveller_id: number; back_by: string }>(token);
   if (!row || row.traveller_id !== me) return false;
   if (change === "home") {
-    db.prepare("UPDATE safe_nights SET home_at = ? WHERE id = ? AND home_at IS NULL").run(new Date().toISOString(), row.id);
+    await db.prepare("UPDATE safe_nights SET home_at = ? WHERE id = ? AND home_at IS NULL").run(new Date().toISOString(), row.id);
   } else if (change === "cancel") {
-    db.prepare("UPDATE safe_nights SET cancelled = 1 WHERE id = ?").run(row.id);
+    await db.prepare("UPDATE safe_nights SET cancelled = 1 WHERE id = ?").run(row.id);
   } else {
     // Running late: push "back by" an hour from whichever is later, now or the old time.
     const base = Math.max(Date.now(), new Date(row.back_by).getTime());
-    db.prepare("UPDATE safe_nights SET back_by = ? WHERE id = ?").run(new Date(base + 3_600_000).toISOString(), row.id);
+    await db.prepare("UPDATE safe_nights SET back_by = ? WHERE id = ?").run(new Date(base + 3_600_000).toISOString(), row.id);
   }
   return true;
 }

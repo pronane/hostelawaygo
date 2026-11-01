@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 
   if ("type" in payload && payload.type === "checkout.session.completed") {
     const code = payload.data?.object?.client_reference_id ?? null;
-    const payment = code ? completePaymentForBookingCode(code) : null;
+    const payment = code ? await completePaymentForBookingCode(code) : null;
     return payment
       ? NextResponse.json({ ok: true, note: `paid ${payment.reference}` })
       : NextResponse.json({ ok: false, note: "unknown booking" }, { status: 404 });
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unsupported event" }, { status: 422 });
   }
 
-  const result = applyWebhookEvent(event);
+  const result = await applyWebhookEvent(event);
   return NextResponse.json(result, { status: result.ok ? 200 : 404 });
 }
 

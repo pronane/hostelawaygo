@@ -24,11 +24,11 @@ export default async function SafePage({
   const user = await getCurrentUser();
   if (!user) redirect(`/login?next=${encodeURIComponent(`/safe${eventParam ? `?event=${eventParam}` : ""}`)}`);
 
-  const event = eventParam ? getEvent(Number(eventParam), user.id) : null;
+  const event = eventParam ? await getEvent(Number(eventParam), user.id) : null;
   const endIso = event
     ? new Date(new Date(event.starts_at).getTime() + event.duration_min * 60_000).toISOString()
     : undefined;
-  const nights = getSafeNights(user.id);
+  const nights = await getSafeNights(user.id);
   const active = nights.filter((n) => !n.cancelled && !n.home_at);
 
   return (

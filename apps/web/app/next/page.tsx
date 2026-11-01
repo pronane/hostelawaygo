@@ -11,7 +11,7 @@ export const metadata = { title: "Next stop" };
 export default async function NextPage() {
   const today = todayISO();
   const user = await getCurrentUser();
-  const trips = getTrips(user?.id ?? null);
+  const trips = await getTrips(user?.id ?? null);
   const trip = trips.find((t) => t.starts_on >= today) ?? trips[trips.length - 1];
 
   if (!trip) {
@@ -32,11 +32,11 @@ export default async function NextPage() {
     );
   }
 
-  const city = getCity(trip.city);
+  const city = await getCity(trip.city);
   const daysToGo = diffDays(today, trip.starts_on);
   const nights = diffDays(trip.starts_on, trip.ends_on);
 
-  const raw = getCityEvents(trip.city, addDays(trip.starts_on, -1), addDays(trip.ends_on, 3), user?.id ?? null);
+  const raw = await getCityEvents(trip.city, addDays(trip.starts_on, -1), addDays(trip.ends_on, 3), user?.id ?? null);
   const events = withWindowStatus(raw, trip.starts_on, trip.ends_on, trip.arrival_time, trip.departure_time);
   const inWindow = events.filter((e) => e.status === "in");
   const outside = events.filter((e) => e.status !== "in");

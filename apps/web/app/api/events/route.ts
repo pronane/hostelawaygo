@@ -46,11 +46,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Price must be between €0 and €1000" }, { status: 400 });
   }
 
-  const hostelId = user.hostel_id ?? getHostels()[0]?.id;
+  const hostelId = user.hostel_id ?? (await getHostels())[0]?.id;
   if (!hostelId) return NextResponse.json({ error: "No hostel attached to this account" }, { status: 400 });
 
   const openToAll = body.openToAll !== false;
-  const id = createHostelEvent({ title, startsAt, priceCents, category, description, openToAll }, hostelId, user.id);
+  const id = await createHostelEvent({ title, startsAt, priceCents, category, description, openToAll }, hostelId, user.id);
 
   revalidatePath("/");
   revalidatePath("/next");

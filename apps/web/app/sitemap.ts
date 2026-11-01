@@ -10,29 +10,33 @@ export const dynamic = "force-dynamic";
  * are willing to put in front of a stranger. Guests-only nights are deliberately
  * absent — they are somebody's private party, not a search result.
  */
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = appUrl();
   const today = todayISO();
 
-  const cities = getLiveCities().flatMap((city) => {
-    const events = getCityEvents(city.slug, today, addDays(today, 21), null).filter(
-      (e) => e.open_to_all === 1
-    );
-    return [
-      {
-        url: `${base}/c/${city.slug}`,
-        lastModified: new Date(),
-        changeFrequency: "daily" as const,
-        priority: 0.9,
-      },
-      ...events.map((event) => ({
-        url: `${base}/event/${event.id}`,
-        lastModified: new Date(event.starts_at),
-        changeFrequency: "weekly" as const,
-        priority: 0.6,
-      })),
-    ];
-  });
+  const cities = (
+    await Promise.all(
+      (await getLiveCities()).map(async (city) => {
+        const events = (await getCityEvents(city.slug, today, addDays(today, 21), null)).filter(
+          (e) => e.open_to_all === 1
+        );
+        return [
+          {
+            url: `${base}/c/${city.slug}`,
+            lastModified: new Date(),
+            changeFrequency: "daily" as const,
+            priority: 0.9,
+          },
+          ...events.map((event) => ({
+            url: `${base}/event/${event.id}`,
+            lastModified: new Date(event.starts_at),
+            changeFrequency: "weekly" as const,
+            priority: 0.6,
+          })),
+        ];
+      })
+    )
+  ).flat();
 
   return [
     { url: `${base}/`, lastModified: new Date(), changeFrequency: "hourly", priority: 1 },

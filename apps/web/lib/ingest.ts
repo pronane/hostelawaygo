@@ -48,10 +48,10 @@ const normaliseText = (value: string) =>
     .replace(/[\u0300-\u036f]/g, "")
     .trim();
 
-function citySlugFor(name: string | undefined): string | null {
+async function citySlugFor(name: string | undefined): Promise<string | null> {
   if (!name) return null;
   const wanted = normaliseText(name);
-  const match = getCities().find((c) => normaliseText(c.name) === wanted);
+  const match = (await getCities()).find((c) => normaliseText(c.name) === wanted);
   return match?.slug ?? null;
 }
 
@@ -80,10 +80,10 @@ function styleFor(raw: TmEvent) {
   );
 }
 
-function toIngested(raw: TmEvent): IngestedEvent | null {
+async function toIngested(raw: TmEvent): Promise<IngestedEvent | null> {
   if (!raw.id || !raw.name) return null;
 
-  const city = citySlugFor(raw._embedded?.venues?.[0]?.city?.name);
+  const city = await citySlugFor(raw._embedded?.venues?.[0]?.city?.name);
   if (!city) return null;
 
   const start = raw.dates?.start;
@@ -137,7 +137,7 @@ function toIngested(raw: TmEvent): IngestedEvent | null {
 async function fetchLive(apiKey: string): Promise<TmEvent[]> {
   const events: TmEvent[] = [];
 
-  for (const city of getCities().filter((c) => c.status !== "planned").slice(0, 3)) {
+  for (const city of (await getCities()).filter((c) => c.status !== "planned").slice(0, 3)) {
     const url = new URL("https://app.ticketmaster.com/discovery/v2/events.json");
     url.searchParams.set("apikey", apiKey);
     url.searchParams.set("city", city.name);
@@ -157,7 +157,7 @@ async function fetchLive(apiKey: string): Promise<TmEvent[]> {
 export async function runTicketmasterIngest(): Promise<IngestSummary> {
   const apiKey = process.env.TICKETMASTER_API_KEY?.trim();
   const mode: "live" | "fixture" = apiKey ? "live" : "fixture";
-  const runId = startIngestRun("ticketmaster", mode);
+  const runId = await startIngestRun("ticketmaster", mode);
 
   let fetched = 0;
   let inserted = 0;
@@ -174,12 +174,12 @@ export async function runTicketmasterIngest(): Promise<IngestSummary> {
     fetched = raw.length;
 
     for (const item of raw) {
-      const event = toIngested(item);
+      const event = await toIngested(item);
       if (!event) {
         skipped += 1;
         continue;
       }
-      const outcome = upsertIngestedEvent(event);
+      const outcome = await upsertIngestedEvent(event);
       if (outcome === "inserted") inserted += 1;
       else if (outcome === "updated") updated += 1;
       else skipped += 1;
@@ -193,7 +193,7 @@ export async function runTicketmasterIngest(): Promise<IngestSummary> {
     note = error instanceof Error ? error.message.slice(0, 200) : "Unknown ingest error";
   }
 
-  finishIngestRun(runId, { fetched, inserted, updated, skipped }, status, note);
+  await finishIngestRun(runId, { fetched, inserted, updated, skipped }, status, note);
 
   return { runId, mode, fetched, inserted, updated, skipped, status, note };
 }

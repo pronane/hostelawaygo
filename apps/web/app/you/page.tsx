@@ -47,10 +47,10 @@ export default async function YouPage({
     );
   }
 
-  const identities = linkedProviders(user.id);
-  const trips = getTrips(user.id);
-  const bookings = getBookingsForUser(user.id);
-  const joined = getJoinedCount(user.id);
+  const identities = await linkedProviders(user.id);
+  const trips = await getTrips(user.id);
+  const bookings = await getBookingsForUser(user.id);
+  const joined = await getJoinedCount(user.id);
   const role =
     user.role === "hostel_staff"
       ? `${user.hostel_name ?? "Hostel"} staff`
@@ -204,8 +204,8 @@ export default async function YouPage({
             <Link href="/safe">
               <b>Share my night</b>
               <span>
-                {(() => {
-                  const out = getSafeNights(user.id).filter((n) => !n.cancelled && !n.home_at).length;
+                {(async () => {
+                  const out = (await getSafeNights(user.id)).filter((n) => !n.cancelled && !n.home_at).length;
                   return out ? `${out} open — tap "I'm home" when you're back` : "Let a friend know where you're going";
                 })()}
               </span>

@@ -18,8 +18,8 @@ export async function sendVerification(
 ): Promise<{ sent: boolean; devLink: string | null }> {
   const token = newToken(24);
   const db = getDb();
-  db.prepare("DELETE FROM email_tokens WHERE traveller_id = ?").run(travellerId);
-  db.prepare(
+  await db.prepare("DELETE FROM email_tokens WHERE traveller_id = ?").run(travellerId);
+  await db.prepare(
     "INSERT INTO email_tokens (token_hash, traveller_id, expires_at) VALUES (@hash, @id, @expires)"
   ).run({
     hash: sha256(token),
@@ -37,16 +37,16 @@ export async function sendVerification(
 }
 
 /** Marks the account verified if the token is valid, unused and in date. */
-export function consumeVerification(token: string): number | null {
+export async function consumeVerification(token: string): Promise<number | null> {
   if (!/^[a-f0-9]{48}$/.test(token)) return null;
   const db = getDb();
-  const row = db
+  const row = await db
     .prepare("SELECT traveller_id, expires_at, used_at FROM email_tokens WHERE token_hash = ?")
     .get<{ traveller_id: number; expires_at: string; used_at: string | null }>(sha256(token));
   if (!row || row.used_at || row.expires_at < new Date().toISOString()) return null;
-  db.transaction(() => {
-    db.prepare("UPDATE email_tokens SET used_at = datetime('now') WHERE token_hash = ?").run(sha256(token));
-    db.prepare("UPDATE travellers SET email_verified_at = datetime('now') WHERE id = ?").run(row.traveller_id);
-  })();
+  await db.transaction(async () => {
+    await db.prepare("UPDATE email_tokens SET used_at = datetime('now') WHERE token_hash = ?").run(sha256(token));
+    await db.prepare("UPDATE travellers SET email_verified_at = datetime('now') WHERE id = ?").run(row.traveller_id);
+  });
   return row.traveller_id;
 }

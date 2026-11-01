@@ -8,7 +8,7 @@ import { getCity } from "@/lib/queries";
 export async function selectCityAction(formData: FormData) {
   const slug = String(formData.get("city") ?? "");
   const next = String(formData.get("next") ?? "/");
-  const city = getCity(slug);
+  const city = await getCity(slug);
   if (!city || city.status !== "live") redirect(next.startsWith("/") ? next : "/");
 
   const jar = await cookies();

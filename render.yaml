@@ -35,6 +35,14 @@ services:
       - key: AWAY_DB_PATH
         value: /var/data/away.db
 
+      # Optional: put the database in Turso instead of on the disk. Set both and
+      # AWAY_DB_PATH above is ignored — useful on the free plan, which cannot
+      # attach a disk at all. See docs/deploy.md#turso.
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false
+
       # Set this to the URL Render gives you, e.g. https://away.onrender.com.
       # It is what OAuth redirect URIs and emailed links are built from.
       - key: APP_URL

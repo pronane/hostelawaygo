@@ -47,7 +47,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   const id = jar.get(SESSION_COOKIE)?.value;
   if (!id) return null;
 
-  const row = getDb()
+  const row = await getDb()
     .prepare(
       `SELECT t.id, t.name, t.initials, t.flag, t.colour, t.email, t.role, t.hostel_id,
               t.solo, t.languages, t.email_verified_at,
@@ -76,7 +76,7 @@ export async function startSession(userId: number): Promise<void> {
   const now = new Date();
   const expires = new Date(now.getTime() + SESSION_DAYS * 86_400_000);
 
-  getDb()
+  await getDb()
     .prepare(
       "INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (@id, @userId, @now, @expires)"
     )
@@ -95,7 +95,7 @@ export async function startSession(userId: number): Promise<void> {
 export async function endSession(): Promise<void> {
   const jar = await cookies();
   const id = jar.get(SESSION_COOKIE)?.value;
-  if (id) getDb().prepare("DELETE FROM sessions WHERE id = ?").run(id);
+  if (id) await getDb().prepare("DELETE FROM sessions WHERE id = ?").run(id);
   jar.delete(SESSION_COOKIE);
 }
 

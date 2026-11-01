@@ -55,11 +55,11 @@ type WalkOrigin = { lat: number; lng: number; name: string };
  * Where "how far is it" is measured from: the hostel the traveller is booked
  * into for that city, or the middle of the city if there's no trip yet.
  */
-function walkOrigins(me: number | null): Map<string, WalkOrigin> {
+async function walkOrigins(me: number | null): Promise<Map<string, WalkOrigin>> {
   const db = getDb();
   const origins = new Map<string, WalkOrigin>();
 
-  for (const c of db.prepare("SELECT slug, lat, lng FROM cities").all<{ slug: string; lat: number; lng: number }>()) {
+  for (const c of await db.prepare("SELECT slug, lat, lng FROM cities").all<{ slug: string; lat: number; lng: number }>()) {
     // A city that hasn't had its centre set yet is 0,0 — measuring from the
     // Gulf of Guinea gives every event a 9,000 km walk.
     if (c.lat === 0 && c.lng === 0) continue;
@@ -67,7 +67,7 @@ function walkOrigins(me: number | null): Map<string, WalkOrigin> {
   }
 
   if (me) {
-    const trips = db
+    const trips = await db
       .prepare(
         `SELECT t.city, h.name, h.lat, h.lng FROM trips t JOIN hostels h ON h.id = t.hostel_id
          WHERE t.traveller_id = ?`
@@ -108,14 +108,14 @@ function toFeedEvent(row: EventRow, origins: Map<string, WalkOrigin>): FeedEvent
   };
 }
 
-function toFeedEvents(rows: EventRow[], me: number | null): FeedEvent[] {
-  const origins = walkOrigins(me);
+async function toFeedEvents(rows: EventRow[], me: number | null): Promise<FeedEvent[]> {
+  const origins = await walkOrigins(me);
   return rows.map((row) => toFeedEvent(row, origins));
 }
 
 /* ---------------------------------------------------------------- cities */
 
-export function getCities(): (City & { events: number; hostels: number })[] {
+export async function getCities(): Promise<(City & { events: number; hostels: number })[]> {
   const today = todayISO();
   return getDb()
     .prepare(
@@ -128,80 +128,80 @@ export function getCities(): (City & { events: number; hostels: number })[] {
     .all({ from: today, to: `${addDays(today, 7)}T23:59` });
 }
 
-export function getCity(slug: string): City | undefined {
+export async function getCity(slug: string): Promise<City | undefined> {
   return getDb().prepare("SELECT * FROM cities WHERE slug = ?").get<City>(slug);
 }
 
 /** Only these are safe to show a traveller: picker, explore, city pages, sitemap. */
-export function getLiveCities(): (City & { events: number; hostels: number })[] {
-  return getCities().filter((c) => c.status === "live");
+export async function getLiveCities(): Promise<(City & { events: number; hostels: number })[]> {
+  return (await getCities()).filter((c) => c.status === "live");
 }
 
 /** Falls back to the first live city, so a stale cookie can't 404 the feed. */
-export function getLiveCityOr(slug: string | undefined, fallback = ""): City | undefined {
-  const wanted = slug ? getCity(slug) : undefined;
+export async function getLiveCityOr(slug: string | undefined, fallback = ""): Promise<City | undefined> {
+  const wanted = slug ? await getCity(slug) : undefined;
   if (wanted?.status === "live") return wanted;
-  const named = fallback ? getCity(fallback) : undefined;
+  const named = fallback ? await getCity(fallback) : undefined;
   if (named?.status === "live") return named;
-  return getLiveCities()[0];
+  return (await getLiveCities())[0];
 }
 
 /**
  * The numbers the launch bar is scored on. `postingHostels` is the honest one:
  * a signed hostel that has never posted is a logo on a page, not supply.
  */
-export function getCitySupply(slug: string, days = LAUNCH_BAR.windowDays): CitySupply {
+export async function getCitySupply(slug: string, days = LAUNCH_BAR.windowDays): Promise<CitySupply> {
   const db = getDb();
   const today = todayISO();
   const to = addDays(today, days);
 
-  const hostels = db
+  const hostels = (await db
     .prepare("SELECT COUNT(*) AS n FROM hostels WHERE city = ? AND status = 'active'")
-    .get<{ n: number }>(slug)!.n;
+    .get<{ n: number }>(slug))!.n;
 
-  const posting = db
+  const posting = (await db
     .prepare(
       `SELECT COUNT(DISTINCT e.hostel_id) AS n FROM events e
        JOIN hostels h ON h.id = e.hostel_id AND h.status = 'active'
        WHERE e.city = @slug AND e.cancelled = 0
          AND e.starts_at >= @from AND e.starts_at < @to`
     )
-    .get<{ n: number }>({ slug, from: today, to })!.n;
+    .get<{ n: number }>({ slug, from: today, to }))!.n;
 
-  const events = db
+  const events = (await db
     .prepare(
       `SELECT COUNT(*) AS n FROM events
        WHERE city = @slug AND cancelled = 0 AND starts_at >= @from AND starts_at < @to`
     )
-    .get<{ n: number }>({ slug, from: today, to })!.n;
+    .get<{ n: number }>({ slug, from: today, to }))!.n;
 
-  const week = db
+  const week = (await db
     .prepare(
       `SELECT COUNT(*) AS n FROM events
        WHERE city = @slug AND cancelled = 0 AND starts_at >= @from AND starts_at < @to`
     )
-    .get<{ n: number }>({ slug, from: today, to: addDays(today, 7) })!.n;
+    .get<{ n: number }>({ slug, from: today, to: addDays(today, 7) }))!.n;
 
-  const joins = db
+  const joins = (await db
     .prepare(
       `SELECT COUNT(*) AS n FROM joins j JOIN events e ON e.id = j.event_id
        WHERE e.city = @slug AND e.cancelled = 0 AND e.starts_at >= @from AND e.starts_at < @to`
     )
-    .get<{ n: number }>({ slug, from: today, to })!.n;
+    .get<{ n: number }>({ slug, from: today, to }))!.n;
 
-  const next = db
+  const next = (await db
     .prepare(
       `SELECT MIN(starts_at) AS starts_at FROM events
        WHERE city = @slug AND cancelled = 0 AND starts_at >= @from`
     )
-    .get<{ starts_at: string | null }>({ slug, from: today })!.starts_at;
+    .get<{ starts_at: string | null }>({ slug, from: today }))!.starts_at;
 
-  const scans = db
+  const scans = (await db
     .prepare(
       `SELECT COUNT(*) AS n FROM arrivals a JOIN hostels h ON h.id = a.hostel_id
        WHERE h.city = @slug AND a.day >= @since`
     )
-    .get<{ n: number }>({ slug, since: addDays(today, -30) })!.n;
+    .get<{ n: number }>({ slug, since: addDays(today, -30) }))!.n;
 
   return {
     hostels,
@@ -221,12 +221,14 @@ export type CityPipelineEntry = {
   readiness: ReturnType<typeof launchReadiness>;
 };
 
-export function getCityPipeline(): CityPipelineEntry[] {
-  return getCities().map((city) => {
-    const supply = getCitySupply(city.slug);
-    const gates = launchGates(city, supply);
-    return { city, supply, gates, readiness: launchReadiness(gates) };
-  });
+export async function getCityPipeline(): Promise<CityPipelineEntry[]> {
+  return Promise.all(
+    (await getCities()).map(async (city) => {
+      const supply = await getCitySupply(city.slug);
+      const gates = launchGates(city, supply);
+      return { city, supply, gates, readiness: launchReadiness(gates) };
+    })
+  );
 }
 
 export type NewCityInput = {
@@ -242,9 +244,9 @@ export type NewCityInput = {
   launch_on: string | null;
 };
 
-export function createCity(input: NewCityInput): { ok: true } | { ok: false; error: string } {
+export async function createCity(input: NewCityInput): Promise<{ ok: true } | { ok: false; error: string }> {
   const db = getDb();
-  if (db.prepare("SELECT 1 AS x FROM cities WHERE slug = ?").get(input.slug)) {
+  if (await db.prepare("SELECT 1 AS x FROM cities WHERE slug = ?").get(input.slug)) {
     return { ok: false, error: `/${input.slug} already exists.` };
   }
 
@@ -254,7 +256,7 @@ export function createCity(input: NewCityInput): { ok: true } | { ok: false; err
     return { ok: false, error: "A city needs a name, country, timezone, centre and a one-line intro." };
   }
 
-  db.prepare(
+  await db.prepare(
     `INSERT INTO cities (slug, name, country, tz, emoji, intro, lat, lng, status, launch_on)
      VALUES (@slug, @name, @country, @tz, @emoji, @intro, @lat, @lng, @status, @launch_on)`
   ).run({
@@ -266,15 +268,15 @@ export function createCity(input: NewCityInput): { ok: true } | { ok: false; err
   return { ok: true };
 }
 
-export function setCityStatus(slug: string, status: CityStatus, launchOn?: string | null): void {
+export async function setCityStatus(slug: string, status: CityStatus, launchOn?: string | null): Promise<void> {
   const db = getDb();
   if (status === "live") {
-    db.prepare(
+    await db.prepare(
       "UPDATE cities SET status = 'live', launch_on = COALESCE(?, launch_on, ?) WHERE slug = ?"
     ).run(launchOn ?? null, todayISO(), slug);
     return;
   }
-  db.prepare("UPDATE cities SET status = ?, launch_on = COALESCE(?, launch_on) WHERE slug = ?").run(
+  await db.prepare("UPDATE cities SET status = ?, launch_on = COALESCE(?, launch_on) WHERE slug = ?").run(
     status,
     launchOn ?? null,
     slug
@@ -283,8 +285,8 @@ export function setCityStatus(slug: string, status: CityStatus, launchOn?: strin
 
 /* ------------------------------------------------------------- arrivals */
 
-export function recordArrival(hostelId: number, visitor: string, day = todayISO()): void {
-  getDb()
+export async function recordArrival(hostelId: number, visitor: string, day = todayISO()): Promise<void> {
+  await getDb()
     .prepare("INSERT OR IGNORE INTO arrivals (hostel_id, visitor, day) VALUES (?, ?, ?)")
     .run(hostelId, visitor, day);
 }
@@ -294,10 +296,10 @@ export function recordArrival(hostelId: number, visitor: string, day = todayISO(
  * the only thing tying an anonymous reception QR scan to a signed-in account,
  * so this must run before the session is created for the best attribution.
  */
-export function attributeArrival(visitor: string | null, travellerId: number, kind: "join" | "booking"): void {
+export async function attributeArrival(visitor: string | null, travellerId: number, kind: "join" | "booking"): Promise<void> {
   if (!visitor) return;
   const column = kind === "join" ? "joined_at" : "booked_at";
-  getDb()
+  await getDb()
     .prepare(
       `UPDATE arrivals SET traveller_id = COALESCE(traveller_id, ?),
          ${column} = COALESCE(${column}, datetime('now'))
@@ -309,7 +311,7 @@ export function attributeArrival(visitor: string | null, travellerId: number, ki
 export type CityHostelRow = Hostel & { upcoming: number; joins: number; scans: number };
 
 /** The partner list on a city's console page: who is actually carrying the city. */
-export function getCityHostels(slug: string): CityHostelRow[] {
+export async function getCityHostels(slug: string): Promise<CityHostelRow[]> {
   const db = getDb();
   const today = todayISO();
   return db
@@ -342,20 +344,20 @@ export type PartnerStats = {
  * something → beds booked. This is the number a hostel signs for, so it is
  * scoped to arrivals that started at that hostel's own link.
  */
-export function getPartnerStats(hostelId: number, days = 30): PartnerStats {
+export async function getPartnerStats(hostelId: number, days = 30): Promise<PartnerStats> {
   const db = getDb();
   const from = addDays(todayISO(), -days);
 
-  const totals = db
+  const totals = (await db
     .prepare(
       `SELECT COUNT(*) AS opens, COUNT(DISTINCT visitor) AS people,
          COALESCE(SUM(CASE WHEN joined_at IS NOT NULL THEN 1 ELSE 0 END), 0) AS joins,
          COALESCE(SUM(CASE WHEN booked_at IS NOT NULL THEN 1 ELSE 0 END), 0) AS booked
        FROM arrivals WHERE hostel_id = ? AND day >= ?`
     )
-    .get<{ opens: number; people: number; joins: number; booked: number }>(hostelId, from)!;
+    .get<{ opens: number; people: number; joins: number; booked: number }>(hostelId, from))!;
 
-  const value = db
+  const value = (await db
     .prepare(
       `SELECT COUNT(*) AS n, COALESCE(SUM(total_cents), 0) AS total FROM bookings
        WHERE hostel_id = @hostelId AND status != 'cancelled'
@@ -364,9 +366,9 @@ export function getPartnerStats(hostelId: number, days = 30): PartnerStats {
            WHERE hostel_id = @hostelId AND day >= @from AND booked_at IS NOT NULL
          )`
     )
-    .get<{ n: number; total: number }>({ hostelId, from })!;
+    .get<{ n: number; total: number }>({ hostelId, from }))!;
 
-  const daily = db
+  const daily = await db
     .prepare(
       `SELECT day, COUNT(*) AS opens FROM arrivals
        WHERE hostel_id = ? AND day >= ? GROUP BY day ORDER BY day ASC`
@@ -387,9 +389,9 @@ export function getPartnerStats(hostelId: number, days = 30): PartnerStats {
 
 /* ----------------------------------------------------------------- trips */
 
-export function getTrip(city: string, me: number | null): Trip | null {
+export async function getTrip(city: string, me: number | null): Promise<Trip | null> {
   if (!me) return null;
-  const row = getDb()
+  const row = await getDb()
     .prepare(
       `SELECT t.*, h.name AS hostel_name
        FROM trips t LEFT JOIN hostels h ON h.id = t.hostel_id
@@ -399,7 +401,7 @@ export function getTrip(city: string, me: number | null): Trip | null {
   return row ?? null;
 }
 
-export function getTrips(me: number | null): Trip[] {
+export async function getTrips(me: number | null): Promise<Trip[]> {
   if (!me) return [];
   return getDb()
     .prepare(
@@ -414,13 +416,13 @@ export function getTrips(me: number | null): Trip[] {
 
 /* ---------------------------------------------------------------- events */
 
-export function getCityEvents(
+export async function getCityEvents(
   city: string,
   from: string,
   to: string,
   me: number | null
-): FeedEvent[] {
-  const rows = getDb()
+): Promise<FeedEvent[]> {
+  const rows = await getDb()
     .prepare(
       `${EVENT_SELECT}
        WHERE e.city = @city AND e.cancelled = 0
@@ -437,14 +439,14 @@ export function getCityEvents(
   return toFeedEvents(rows, me);
 }
 
-export function getEvent(id: number, me: number | null): FeedEvent | null {
-  const row = getDb()
+export async function getEvent(id: number, me: number | null): Promise<FeedEvent | null> {
+  const row = await getDb()
     .prepare(`${EVENT_SELECT} WHERE e.id = @id AND ${VISIBLE_TO_ME}`)
     .get<EventRow>({ id, me });
-  return row ? toFeedEvents([row], me)[0] : null;
+  return row ? (await toFeedEvents([row], me))[0] : null;
 }
 
-export function getWhoIsGoing(eventId: number): Traveller[] {
+export async function getWhoIsGoing(eventId: number): Promise<Traveller[]> {
   return getDb()
     .prepare(
       `SELECT t.*, j.created_at FROM joins j JOIN travellers t ON t.id = j.traveller_id
@@ -453,22 +455,22 @@ export function getWhoIsGoing(eventId: number): Traveller[] {
     .all<Traveller>(eventId);
 }
 
-export function toggleJoin(eventId: number, me: number, visitor: string | null = null) {
+export async function toggleJoin(eventId: number, me: number, visitor: string | null = null) {
   const db = getDb();
-  const exists = db
+  const exists = await db
     .prepare("SELECT 1 AS x FROM joins WHERE event_id = ? AND traveller_id = ?")
     .get(eventId, me);
 
   if (exists) {
-    db.prepare("DELETE FROM joins WHERE event_id = ? AND traveller_id = ?").run(eventId, me);
+    await db.prepare("DELETE FROM joins WHERE event_id = ? AND traveller_id = ?").run(eventId, me);
   } else {
-    db.prepare("INSERT INTO joins (event_id, traveller_id) VALUES (?, ?)").run(eventId, me);
+    await db.prepare("INSERT INTO joins (event_id, traveller_id) VALUES (?, ?)").run(eventId, me);
     // Only joining counts as pull. Leaving an event is not a hostel's win.
-    attributeArrival(visitor, me, "join");
+    await attributeArrival(visitor, me, "join");
   }
 
   const going = (
-    db.prepare("SELECT COUNT(*) AS n FROM joins WHERE event_id = ?").get<{ n: number }>(eventId) as {
+    await db.prepare("SELECT COUNT(*) AS n FROM joins WHERE event_id = ?").get<{ n: number }>(eventId) as {
       n: number;
     }
   ).n;
@@ -476,8 +478,8 @@ export function toggleJoin(eventId: number, me: number, visitor: string | null =
   return { joined: !exists, going };
 }
 
-export function getHostelPosts(hostelId: number, limit: number, me: number | null): FeedEvent[] {
-  const rows = getDb()
+export async function getHostelPosts(hostelId: number, limit: number, me: number | null): Promise<FeedEvent[]> {
+  const rows = await getDb()
     .prepare(`${EVENT_SELECT} WHERE e.hostel_id = @hostelId AND ${VISIBLE_TO_ME} ORDER BY e.starts_at DESC LIMIT @limit`)
     .all<EventRow>({ hostelId, limit, me });
   return toFeedEvents(rows, me);
@@ -503,13 +505,13 @@ const CATEGORY_STYLE: Record<string, { emoji: string; cover: [string, string] }>
   nightlife: { emoji: "🪩", cover: ["#C9C2FF", "#6C5CE7"] },
 };
 
-export function createHostelEvent(
+export async function createHostelEvent(
   input: NewEventInput,
   hostelId: number,
   me: number | null
-): number {
+): Promise<number> {
   const db = getDb();
-  const hostel = db
+  const hostel = await db
     .prepare("SELECT id, name FROM hostels WHERE id = ?")
     .get<{ id: number; name: string }>(hostelId);
   if (!hostel) throw new Error("Unknown hostel");
@@ -526,7 +528,7 @@ export function createHostelEvent(
   const startsAt =
     scheduled.getTime() < todayStart.getTime() ? `${addDays(today, 1)}T${time}` : `${today}T${time}`;
 
-  const info = db
+  const info = await db
     .prepare(
       `INSERT INTO events (city, hostel_id, title, description, starts_at, duration_min, price_cents,
         source, category, emoji, cover_from, cover_to, venue, walk_minutes, tags, lens, created_by,
@@ -557,12 +559,12 @@ export function createHostelEvent(
   return info.lastInsertRowid;
 }
 
-export function cancelEvent(eventId: number): void {
-  getDb().prepare("UPDATE events SET cancelled = 1 WHERE id = ?").run(eventId);
+export async function cancelEvent(eventId: number): Promise<void> {
+  await getDb().prepare("UPDATE events SET cancelled = 1 WHERE id = ?").run(eventId);
 }
 
-export function getStaffEvents(hostelId: number, me: number | null): FeedEvent[] {
-  const rows = getDb()
+export async function getStaffEvents(hostelId: number, me: number | null): Promise<FeedEvent[]> {
+  const rows = await getDb()
     .prepare(
       `${EVENT_SELECT} WHERE e.hostel_id = @hostelId ORDER BY e.starts_at DESC LIMIT 30`
     )
@@ -570,37 +572,37 @@ export function getStaffEvents(hostelId: number, me: number | null): FeedEvent[]
   return toFeedEvents(rows, me);
 }
 
-export function getStaffStats(hostelId: number) {
+export async function getStaffStats(hostelId: number) {
   const db = getDb();
   const today = todayISO();
 
-  const upcoming = db
+  const upcoming = (await db
     .prepare(
       `SELECT COUNT(*) AS n FROM events
        WHERE hostel_id = @hostelId AND cancelled = 0 AND starts_at >= @today`
     )
-    .get<{ n: number }>({ hostelId, today })!.n;
+    .get<{ n: number }>({ hostelId, today }))!.n;
 
-  const joins = db
+  const joins = (await db
     .prepare(
       `SELECT COUNT(*) AS n FROM joins j JOIN events e ON e.id = j.event_id
        WHERE e.hostel_id = @hostelId AND e.starts_at >= @today`
     )
-    .get<{ n: number }>({ hostelId, today })!.n;
+    .get<{ n: number }>({ hostelId, today }))!.n;
 
-  const bookings = db
+  const bookings = (await db
     .prepare(
       `SELECT COUNT(*) AS n, COALESCE(SUM(total_cents), 0) AS revenue FROM bookings
        WHERE hostel_id = @hostelId AND status != 'cancelled'`
     )
-    .get<{ n: number; revenue: number }>({ hostelId })!;
+    .get<{ n: number; revenue: number }>({ hostelId }))!;
 
-  const messages = db
+  const messages = (await db
     .prepare(
       `SELECT COUNT(*) AS n FROM messages m JOIN events e ON e.id = m.event_id
        WHERE e.hostel_id = @hostelId AND m.reported = 1 AND m.hidden = 0`
     )
-    .get<{ n: number }>({ hostelId })!.n;
+    .get<{ n: number }>({ hostelId }))!.n;
 
   return { upcoming, joins, bookings: bookings.n, revenue: bookings.revenue, reported: messages };
 }
@@ -612,36 +614,36 @@ export function getStaffStats(hostelId: number) {
  * same table with status = 'pending' and must never leak into Explore, a city
  * page, the launch bar or the sitemap.
  */
-export function getHostels(city?: string): Hostel[] {
+export async function getHostels(city?: string): Promise<Hostel[]> {
   const db = getDb();
   return city
-    ? db
+    ? await db
         .prepare("SELECT * FROM hostels WHERE city = ? AND status = 'active' ORDER BY rating DESC")
         .all<Hostel>(city)
-    : db
+    : await db
         .prepare("SELECT * FROM hostels WHERE status = 'active' ORDER BY city, rating DESC")
         .all<Hostel>();
 }
 
 /** Ops and staff surfaces: everything, whatever its state. */
-export function getAllHostels(city?: string): Hostel[] {
+export async function getAllHostels(city?: string): Promise<Hostel[]> {
   const db = getDb();
   return city
-    ? db.prepare("SELECT * FROM hostels WHERE city = ? ORDER BY status, name").all<Hostel>(city)
-    : db.prepare("SELECT * FROM hostels ORDER BY city, status, name").all<Hostel>();
+    ? await db.prepare("SELECT * FROM hostels WHERE city = ? ORDER BY status, name").all<Hostel>(city)
+    : await db.prepare("SELECT * FROM hostels ORDER BY city, status, name").all<Hostel>();
 }
 
-export function getHostelById(id: number): Hostel | undefined {
+export async function getHostelById(id: number): Promise<Hostel | undefined> {
   return getDb().prepare("SELECT * FROM hostels WHERE id = ?").get<Hostel>(id);
 }
 
-export function getCityApplications(city: string): Hostel[] {
+export async function getCityApplications(city: string): Promise<Hostel[]> {
   return getDb()
     .prepare("SELECT * FROM hostels WHERE city = ? AND status = 'pending' ORDER BY applied_at ASC")
     .all<Hostel>(city);
 }
 
-export function getPendingApplications(limit = 20): (Hostel & { city_name: string })[] {
+export async function getPendingApplications(limit = 20): Promise<(Hostel & { city_name: string })[]> {
   return getDb()
     .prepare(
       `SELECT h.*, COALESCE(c.name, h.city) AS city_name
@@ -676,33 +678,33 @@ const slugify = (value: string) =>
  * created together, in one transaction, so we never end up with an applicant
  * who has no hostel or a hostel nobody can log into.
  */
-export function createPartnerApplication(
+export async function createPartnerApplication(
   input: HostelApplicationInput & { contactName: string; email: string; passwordHash: string }
-): { ok: true; hostelId: number; travellerId: number } | { ok: false; error: string } {
+): Promise<{ ok: true; hostelId: number; travellerId: number } | { ok: false; error: string }> {
   const db = getDb();
 
-  const city = db.prepare("SELECT slug, lat, lng FROM cities WHERE slug = ?").get<{
+  const city = await db.prepare("SELECT slug, lat, lng FROM cities WHERE slug = ?").get<{
     slug: string;
     lat: number;
     lng: number;
   }>(input.city);
   if (!city) return { ok: false, error: "Pick a city we know about." };
 
-  if (db.prepare("SELECT 1 AS x FROM travellers WHERE email = ?").get(input.email)) {
+  if (await db.prepare("SELECT 1 AS x FROM travellers WHERE email = ?").get(input.email)) {
     return { ok: false, error: "That email already has an account. Sign in instead." };
   }
 
   const base = slugify(input.name);
   if (!base) return { ok: false, error: "Give the hostel a name we can use in a URL." };
   let slug = base;
-  for (let n = 2; db.prepare("SELECT 1 AS x FROM hostels WHERE slug = ?").get(slug); n += 1) {
+  for (let n = 2; await db.prepare("SELECT 1 AS x FROM hostels WHERE slug = ?").get(slug); n += 1) {
     slug = `${base}-${n}`;
     if (n > 20) return { ok: false, error: "That name is taken. Try a slightly different one." };
   }
 
   try {
-    return db.transaction(() => {
-      const hostel = db
+    return db.transaction(async () => {
+      const hostel = await db
         .prepare(
           `INSERT INTO hostels (slug, city, name, area, description, rating, price_from_cents,
              lat, lng, status, contact_email, applied_at, note, beds)
@@ -723,7 +725,7 @@ export function createPartnerApplication(
           beds: input.beds,
         });
 
-      const person = db
+      const person = await db
         .prepare(
           `INSERT INTO travellers (name, initials, flag, colour, solo, languages, email,
              password_hash, role, hostel_id, email_verified_at)
@@ -744,7 +746,7 @@ export function createPartnerApplication(
         });
 
       return { ok: true as const, hostelId: hostel.lastInsertRowid, travellerId: person.lastInsertRowid };
-    })();
+    });
   } catch {
     return { ok: false, error: "Something went wrong saving the application. Try again." };
   }
@@ -755,21 +757,21 @@ export function createPartnerApplication(
  * rating placeholder of "new", and gets a bookable room set so the first
  * traveller who finds it can actually reserve a bed.
  */
-export function approveHostel(hostelId: number): boolean {
+export async function approveHostel(hostelId: number): Promise<boolean> {
   const db = getDb();
-  const hostel = db.prepare("SELECT * FROM hostels WHERE id = ?").get<Hostel>(hostelId);
+  const hostel = await db.prepare("SELECT * FROM hostels WHERE id = ?").get<Hostel>(hostelId);
   if (!hostel || hostel.status === "active") return false;
 
-  db.transaction(() => {
-    db.prepare("UPDATE hostels SET status = 'active' WHERE id = ?").run(hostelId);
+  await db.transaction(async () => {
+    await db.prepare("UPDATE hostels SET status = 'active' WHERE id = ?").run(hostelId);
 
-    const rooms = db.prepare("SELECT COUNT(*) AS n FROM rooms WHERE hostel_id = ?").get<{ n: number }>(hostelId)!;
+    const rooms = (await db.prepare("SELECT COUNT(*) AS n FROM rooms WHERE hostel_id = ?").get<{ n: number }>(hostelId))!;
     if (rooms.n === 0 && hostel.price_from_cents > 0) {
       const insRoom = db.prepare(
         "INSERT INTO rooms (hostel_id, name, kind, beds, price_cents) VALUES (?, ?, ?, ?, ?)"
       );
-      insRoom.run(hostelId, "Mixed dorm · 6 beds", "dorm", 6, hostel.price_from_cents);
-      insRoom.run(
+      await insRoom.run(hostelId, "Mixed dorm · 6 beds", "dorm", 6, hostel.price_from_cents);
+      await insRoom.run(
         hostelId,
         "Private double",
         "private",
@@ -777,27 +779,27 @@ export function approveHostel(hostelId: number): boolean {
         Math.round((hostel.price_from_cents * 3.4) / 100) * 100
       );
     }
-  })();
+  });
 
   return true;
 }
 
-export function rejectHostel(hostelId: number): boolean {
+export async function rejectHostel(hostelId: number): Promise<boolean> {
   return (
-    getDb().prepare("UPDATE hostels SET status = 'rejected' WHERE id = ? AND status = 'pending'").run(hostelId)
+    (await getDb().prepare("UPDATE hostels SET status = 'rejected' WHERE id = ? AND status = 'pending'").run(hostelId))
       .changes > 0
   );
 }
 
-export function setHostelStatus(hostelId: number, status: "active" | "paused"): void {
-  getDb().prepare("UPDATE hostels SET status = ? WHERE id = ?").run(status, hostelId);
+export async function setHostelStatus(hostelId: number, status: "active" | "paused"): Promise<void> {
+  await getDb().prepare("UPDATE hostels SET status = ? WHERE id = ?").run(status, hostelId);
 }
 
-export function getHostelBySlug(slug: string): Hostel | undefined {
+export async function getHostelBySlug(slug: string): Promise<Hostel | undefined> {
   return getDb().prepare("SELECT * FROM hostels WHERE slug = ?").get<Hostel>(slug);
 }
 
-export function getRooms(hostelId: number): Room[] {
+export async function getRooms(hostelId: number): Promise<Room[]> {
   return getDb()
     .prepare("SELECT * FROM rooms WHERE hostel_id = ? ORDER BY price_cents ASC")
     .all<Room>(hostelId);
@@ -805,26 +807,26 @@ export function getRooms(hostelId: number): Room[] {
 
 /* ------------------------------------------------------------- travellers */
 
-export function getTraveller(id: number): Traveller | null {
-  return getDb().prepare("SELECT * FROM travellers WHERE id = ?").get<Traveller>(id) ?? null;
+export async function getTraveller(id: number): Promise<Traveller | null> {
+  return await getDb().prepare("SELECT * FROM travellers WHERE id = ?").get<Traveller>(id) ?? null;
 }
 
-export function getTravellerCount(): number {
-  return getDb().prepare("SELECT COUNT(*) AS n FROM travellers").get<{ n: number }>()!.n;
+export async function getTravellerCount(): Promise<number> {
+  return (await getDb().prepare("SELECT COUNT(*) AS n FROM travellers").get<{ n: number }>())!.n;
 }
 
-export function getJoinedCount(me: number | null): number {
+export async function getJoinedCount(me: number | null): Promise<number> {
   if (!me) return 0;
   return (
-    getDb()
+    (await getDb()
       .prepare("SELECT COUNT(*) AS n FROM joins WHERE traveller_id = ?")
-      .get<{ n: number }>(me)!.n
+      .get<{ n: number }>(me))!.n
   );
 }
 
 /* ---------------------------------------------------------------- chat */
 
-export function getMessages(eventId: number, me: number | null): Message[] {
+export async function getMessages(eventId: number, me: number | null): Promise<Message[]> {
   return getDb()
     .prepare(
       `SELECT m.*, t.name, t.initials, t.colour, t.flag,
@@ -836,7 +838,7 @@ export function getMessages(eventId: number, me: number | null): Message[] {
     .all<Message>({ eventId, me });
 }
 
-export function getMessagesAfter(eventId: number, afterId: number, me: number | null): Message[] {
+export async function getMessagesAfter(eventId: number, afterId: number, me: number | null): Promise<Message[]> {
   return getDb()
     .prepare(
       `SELECT m.*, t.name, t.initials, t.colour, t.flag,
@@ -848,9 +850,9 @@ export function getMessagesAfter(eventId: number, afterId: number, me: number | 
     .all<Message>({ eventId, afterId, me });
 }
 
-export function getMessageById(messageId: number, me: number | null): Message | null {
+export async function getMessageById(messageId: number, me: number | null): Promise<Message | null> {
   return (
-    getDb()
+    await getDb()
       .prepare(
         `SELECT m.*, t.name, t.initials, t.colour, t.flag,
                 CASE WHEN m.traveller_id = @me THEN 1 ELSE 0 END AS mine
@@ -861,46 +863,46 @@ export function getMessageById(messageId: number, me: number | null): Message | 
   );
 }
 
-export function recentMessageCount(me: number, minutes = 10): number {
+export async function recentMessageCount(me: number, minutes = 10): Promise<number> {
   return (
-    getDb()
+    (await getDb()
       .prepare(
         "SELECT COUNT(*) AS n FROM messages WHERE traveller_id = ? AND created_at > datetime('now', ?)"
       )
-      .get<{ n: number }>(me, `-${minutes} minutes`)!.n
+      .get<{ n: number }>(me, `-${minutes} minutes`))!.n
   );
 }
 
-export function addMessage(eventId: number, me: number, body: string): number {
-  const info = getDb()
+export async function addMessage(eventId: number, me: number, body: string): Promise<number> {
+  const info = await getDb()
     .prepare("INSERT INTO messages (event_id, traveller_id, body) VALUES (?, ?, ?)")
     .run(eventId, me, body.slice(0, 500));
   return info.lastInsertRowid;
 }
 
-export function reportMessage(messageId: number): void {
-  getDb().prepare("UPDATE messages SET reported = 1 WHERE id = ?").run(messageId);
+export async function reportMessage(messageId: number): Promise<void> {
+  await getDb().prepare("UPDATE messages SET reported = 1 WHERE id = ?").run(messageId);
 }
 
-export function clearReport(messageId: number): void {
-  getDb().prepare("UPDATE messages SET reported = 0 WHERE id = ?").run(messageId);
+export async function clearReport(messageId: number): Promise<void> {
+  await getDb().prepare("UPDATE messages SET reported = 0 WHERE id = ?").run(messageId);
 }
 
 /** Hostel that owns the event a chat message belongs to (for moderation scope). */
-export function getMessageHostel(messageId: number): number | null | undefined {
-  const row = getDb()
+export async function getMessageHostel(messageId: number): Promise<number | null | undefined> {
+  const row = await getDb()
     .prepare("SELECT e.hostel_id AS hostel_id FROM messages m JOIN events e ON e.id = m.event_id WHERE m.id = ?")
     .get<{ hostel_id: number | null }>(messageId);
   return row ? row.hostel_id : undefined;
 }
 
-export function hideMessage(messageId: number): void {
-  getDb().prepare("UPDATE messages SET hidden = 1 WHERE id = ?").run(messageId);
+export async function hideMessage(messageId: number): Promise<void> {
+  await getDb().prepare("UPDATE messages SET hidden = 1 WHERE id = ?").run(messageId);
 }
 
-export function getReportedMessages(
+export async function getReportedMessages(
   hostelId: number
-): (Message & { event_title: string })[] {
+): Promise<(Message & { event_title: string })[]> {
   return getDb()
     .prepare(
       `SELECT m.*, t.name, t.initials, t.colour, t.flag,
@@ -917,29 +919,31 @@ export function getReportedMessages(
 
 /* ------------------------------------------------------------- bookings */
 
-export function bedsTaken(roomId: number, checkIn: string, checkOut: string): number {
+export async function bedsTaken(roomId: number, checkIn: string, checkOut: string): Promise<number> {
   const db = getDb();
   const nights = Math.max(0, diffDays(checkIn, checkOut));
   let peak = 0;
   for (let i = 0; i < nights; i += 1) {
     const night = addDays(checkIn, i);
-    const row = db
+    const row = (await db
       .prepare(
         `SELECT COALESCE(SUM(guests), 0) AS n FROM bookings
          WHERE room_id = @roomId AND status != 'cancelled'
            AND check_in <= @night AND check_out > @night`
       )
-      .get<{ n: number }>({ roomId, night })!;
+      .get<{ n: number }>({ roomId, night }))!;
     peak = Math.max(peak, row.n);
   }
   return peak;
 }
 
-export function roomsWithAvailability(hostelId: number, checkIn: string, checkOut: string) {
-  return getRooms(hostelId).map((room) => {
-    const taken = bedsTaken(room.id, checkIn, checkOut);
-    return { ...room, taken, free: Math.max(0, room.beds - taken) };
-  });
+export async function roomsWithAvailability(hostelId: number, checkIn: string, checkOut: string) {
+  return Promise.all(
+    (await getRooms(hostelId)).map(async (room) => {
+      const taken = await bedsTaken(room.id, checkIn, checkOut);
+      return { ...room, taken, free: Math.max(0, room.beds - taken) };
+    })
+  );
 }
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -965,13 +969,13 @@ function isRealDate(iso: string): boolean {
   return t.getUTCFullYear() === y && t.getUTCMonth() === m - 1 && t.getUTCDate() === d;
 }
 
-export function createBooking(
+export async function createBooking(
   input: BookingInput,
   me: number,
   visitor: string | null = null
-): { ok: true; code: string } | { ok: false; error: string } {
+): Promise<{ ok: true; code: string } | { ok: false; error: string }> {
   const db = getDb();
-  const room = db
+  const room = await db
     .prepare("SELECT r.*, h.id AS hostel_id FROM rooms r JOIN hostels h ON h.id = r.hostel_id WHERE r.id = ?")
     .get<Room>(input.roomId);
   if (!room) return { ok: false, error: "That room no longer exists." };
@@ -990,8 +994,8 @@ export function createBooking(
   }
 
   try {
-    return db.transaction(() => {
-      const taken = bedsTaken(room.id, input.checkIn, input.checkOut);
+    return db.transaction(async () => {
+      const taken = await bedsTaken(room.id, input.checkIn, input.checkOut);
       if (taken + input.guests > room.beds) {
         return { ok: false as const, error: "Someone just took the last bed. Try different dates." };
       }
@@ -999,7 +1003,7 @@ export function createBooking(
       const total = room.price_cents * nights * input.guests;
       const code = bookingCode();
 
-      const booking = db
+      const booking = await db
         .prepare(
           `INSERT INTO bookings (code, traveller_id, hostel_id, room_id, check_in, check_out,
              guests, nights, total_cents, status, created_at)
@@ -1018,11 +1022,11 @@ export function createBooking(
           total,
         });
 
-      openPayment(booking.lastInsertRowid, code, total);
-      attributeArrival(visitor, me, "booking");
+      await openPayment(booking.lastInsertRowid, code, total);
+      await attributeArrival(visitor, me, "booking");
 
       return { ok: true as const, code };
-    })();
+    });
   } catch {
     return { ok: false, error: "Something went wrong holding that bed. Try again." };
   }
@@ -1039,18 +1043,18 @@ const BOOKING_SELECT = `
   LEFT JOIN payments p ON p.booking_id = b.id
 `;
 
-export function getBookingByCode(code: string): BookingDetail | undefined {
+export async function getBookingByCode(code: string): Promise<BookingDetail | undefined> {
   return getDb().prepare(`${BOOKING_SELECT} WHERE b.code = @code`).get<BookingDetail>({ code });
 }
 
-export function getBookingsForUser(me: number | null): BookingDetail[] {
+export async function getBookingsForUser(me: number | null): Promise<BookingDetail[]> {
   if (!me) return [];
   return getDb()
     .prepare(`${BOOKING_SELECT} WHERE b.traveller_id = @me ORDER BY b.check_in DESC`)
     .all<BookingDetail>({ me });
 }
 
-export function getBookingsForHostel(hostelId: number): (BookingDetail & { guest_name: string })[] {
+export async function getBookingsForHostel(hostelId: number): Promise<(BookingDetail & { guest_name: string })[]> {
   return getDb()
     .prepare(
       `${BOOKING_SELECT.replace(
@@ -1062,9 +1066,9 @@ export function getBookingsForHostel(hostelId: number): (BookingDetail & { guest
     .all<BookingDetail & { guest_name: string }>({ hostelId });
 }
 
-export function markBookingPaid(code: string, me: number): Payment["status"] | null {
+export async function markBookingPaid(code: string, me: number): Promise<Payment["status"] | null> {
   const db = getDb();
-  const booking = db
+  const booking = await db
     .prepare("SELECT id, traveller_id, status FROM bookings WHERE code = ?")
     .get<{ id: number; traveller_id: number; status: string }>(code);
   if (!booking || booking.traveller_id !== me) return null;
@@ -1072,32 +1076,32 @@ export function markBookingPaid(code: string, me: number): Payment["status"] | n
   // back to "confirmed" without re-checking that the bed was still free.
   if (booking.status !== "pending") return null;
 
-  const payment = getPaymentForBooking(booking.id);
+  const payment = await getPaymentForBooking(booking.id);
   if (!payment) return null;
 
-  const paid = db.transaction(() => completePayment(payment.reference))();
+  const paid = await db.transaction(async () => completePayment(payment.reference));
   return paid ? ("paid" as const) : null;
 }
 
-export function cancelBooking(code: string, me: number): boolean {
+export async function cancelBooking(code: string, me: number): Promise<boolean> {
   const db = getDb();
-  const booking = db
+  const booking = await db
     .prepare("SELECT id, traveller_id, status FROM bookings WHERE code = ?")
     .get<{ id: number; traveller_id: number; status: string }>(code);
   if (!booking || booking.traveller_id !== me || booking.status === "cancelled") return false;
 
-  db.transaction(() => {
-    db.prepare("UPDATE bookings SET status = 'cancelled' WHERE id = ?").run(booking.id);
-    refundPayment(booking.id);
-  })();
+  await db.transaction(async () => {
+    await db.prepare("UPDATE bookings SET status = 'cancelled' WHERE id = ?").run(booking.id);
+    await refundPayment(booking.id);
+  });
 
   return true;
 }
 
 /* --------------------------------------------------------------- ingest */
 
-export function startIngestRun(source: string, mode: string): number {
-  const info = getDb()
+export async function startIngestRun(source: string, mode: string): Promise<number> {
+  const info = await getDb()
     .prepare(
       "INSERT INTO ingest_runs (source, mode, started_at, status) VALUES (?, ?, datetime('now'), 'running')"
     )
@@ -1105,13 +1109,13 @@ export function startIngestRun(source: string, mode: string): number {
   return info.lastInsertRowid;
 }
 
-export function finishIngestRun(
+export async function finishIngestRun(
   id: number,
   counts: { fetched: number; inserted: number; updated: number; skipped: number },
   status: string,
   note = ""
-): void {
-  getDb()
+): Promise<void> {
+  await getDb()
     .prepare(
       `UPDATE ingest_runs SET finished_at = datetime('now'), fetched = @fetched,
         inserted = @inserted, updated = @updated, skipped = @skipped, status = @status, note = @note
@@ -1142,14 +1146,14 @@ export type IngestedEvent = {
   lens: string[];
 };
 
-export function upsertIngestedEvent(event: IngestedEvent): "inserted" | "updated" | "skipped" {
+export async function upsertIngestedEvent(event: IngestedEvent): Promise<"inserted" | "updated" | "skipped"> {
   const db = getDb();
-  const existing = db
+  const existing = await db
     .prepare("SELECT id FROM events WHERE city = ? AND external_id = ?")
     .get<{ id: number }>(event.city, event.externalId);
 
   if (existing) {
-    db.prepare(
+    await db.prepare(
       `UPDATE events SET title = @title, description = @description, starts_at = @startsAt,
         duration_min = @durationMin, price_cents = @priceCents, price_max_cents = @priceMaxCents,
         currency = @currency, ticket_url = @ticketUrl, venue = @venue, lat = @lat, lng = @lng,
@@ -1176,7 +1180,7 @@ export function upsertIngestedEvent(event: IngestedEvent): "inserted" | "updated
     return "updated";
   }
 
-  db.prepare(
+  await db.prepare(
     `INSERT INTO events (city, hostel_id, title, description, starts_at, duration_min, price_cents,
       price_max_cents, currency, ticket_url, source, category, emoji, cover_from, cover_to, venue,
       lat, lng, walk_minutes, tags, lens, created_by, external_id, origin, created_at)
@@ -1210,19 +1214,19 @@ export function upsertIngestedEvent(event: IngestedEvent): "inserted" | "updated
   return "inserted";
 }
 
-export function getIngestRuns(limit = 8): IngestRun[] {
+export async function getIngestRuns(limit = 8): Promise<IngestRun[]> {
   return getDb()
     .prepare("SELECT * FROM ingest_runs ORDER BY id DESC LIMIT ?")
     .all<IngestRun>(limit);
 }
 
-export function getIngestTotals() {
-  const row = getDb()
+export async function getIngestTotals() {
+  const row = (await getDb()
     .prepare(
       `SELECT COUNT(*) AS events, MAX(created_at) AS newest
        FROM events WHERE origin = 'ingest'`
     )
-    .get<{ events: number; newest: string | null }>()!;
+    .get<{ events: number; newest: string | null }>())!;
   return row;
 }
 

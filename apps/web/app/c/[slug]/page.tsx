@@ -19,11 +19,11 @@ type Props = { params: Promise<{ slug: string }> };
  */
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
-  const city = getCity(slug);
+  const city = await getCity(slug);
   if (!city || city.status !== "live") return { title: "City not found" };
 
   const today = todayISO();
-  const events = getCityEvents(city.slug, today, addDays(today, 7), null);
+  const events = await getCityEvents(city.slug, today, addDays(today, 7), null);
   const title = `What's on in ${city.name} this week`;
   const description = `${city.intro} ${plural(events.length, "event")} in the next seven days, from hostel nights to ticketed gigs.`;
 
@@ -37,13 +37,13 @@ export async function generateMetadata({ params }: Props) {
 
 export default async function PublicCityPage({ params }: Props) {
   const { slug } = await params;
-  const city = getCity(slug);
+  const city = await getCity(slug);
   if (!city || city.status !== "live") notFound();
 
   const today = todayISO();
-  const events = getCityEvents(city.slug, today, addDays(today, 7), null);
+  const events = await getCityEvents(city.slug, today, addDays(today, 7), null);
   const groups = groupByDay(events);
-  const hostels = getHostels(city.slug).filter((h) =>
+  const hostels = (await getHostels(city.slug)).filter((h) =>
     events.some((e) => e.hostel_id === h.id)
   );
 

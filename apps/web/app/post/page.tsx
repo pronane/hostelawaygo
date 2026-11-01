@@ -10,12 +10,12 @@ export const metadata = { title: "Post tonight" };
 
 export default async function PostPage() {
   const user = await requireActiveStaff("/post");
-  const hostels = getHostels();
+  const hostels = await getHostels();
   const hostel = (user.hostel_id ? hostels.find((h) => h.id === user.hostel_id) : hostels[0])!;
   // The audience promise is made per city, not per database.
-  const cityHostels = getHostels(hostel.city);
-  const posts = getHostelPosts(hostel.id, 4, user.id);
-  const audience = getTravellerCount();
+  const cityHostels = await getHostels(hostel.city);
+  const posts = await getHostelPosts(hostel.id, 4, user.id);
+  const audience = await getTravellerCount();
 
   return (
     <>

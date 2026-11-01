@@ -1,4 +1,4 @@
-import { getDb } from "@/lib/db";
+import { dbInfo, getDb } from "@/lib/db";
 import { SCHEMA_VERSION } from "@/lib/schema";
 import { paymentProvider } from "@/lib/payments";
 import { demoAccountsEnabled, demoLoginEnabled } from "@/lib/flags";
@@ -6,8 +6,9 @@ import { storage } from "@/lib/storage";
 
 /**
  * Liveness plus the three facts worth knowing about a running deployment: is the
- * database there and the schema this build expects, will it still be there
- * tomorrow (`storage`), and is this the demo or the real thing.
+ * database there and the schema this build expects, which driver is answering
+ * (`database`) and whether it will still be there tomorrow (`storage`), and is
+ * this the demo or the real thing.
  *
  * Deliberately cheap and public: no session, no counts of people, nothing that
  * would be a leak. A deploy platform points its health check here, which also
@@ -18,12 +19,12 @@ export const dynamic = "force-dynamic";
 
 const started = Date.now();
 
-export function GET() {
+export async function GET() {
   try {
     const db = getDb();
-    const version = db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get<{ value: string }>()?.value;
-    const cities = db.prepare("SELECT COUNT(*) AS n FROM cities").get<{ n: number }>()?.n ?? 0;
-    const events = db.prepare("SELECT COUNT(*) AS n FROM events").get<{ n: number }>()?.n ?? 0;
+    const version = (await db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get<{ value: string }>())?.value;
+    const cities = (await db.prepare("SELECT COUNT(*) AS n FROM cities").get<{ n: number }>())?.n ?? 0;
+    const events = (await db.prepare("SELECT COUNT(*) AS n FROM events").get<{ n: number }>())?.n ?? 0;
 
     const body = {
       service: "away-web",
@@ -33,8 +34,12 @@ export function GET() {
       cities,
       events,
       payments: paymentProvider(),
+      // "turso" is SQLite in the cloud; "sqlite" is a file, which is persistent
+      // only where something mounts a disk.
+      database: dbInfo.driver,
       // "ephemeral" means the database does not survive this instance — true on
-      // Vercel, on any serverless host, and on a machine with nothing mounted.
+      // Vercel without Turso, on any serverless host, and on a machine with
+      // nothing mounted.
       storage: storage.ephemeral ? "ephemeral" : "persistent",
       storageWhy: storage.reason,
       demo:

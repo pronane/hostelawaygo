@@ -12,7 +12,7 @@ export async function createSafeNightAction(formData: FormData) {
   if (!user) redirect("/login?next=/safe");
 
   const eventId = Number(formData.get("eventId")) || null;
-  const event = eventId ? getEvent(eventId, user.id) : null;
+  const event = eventId ? await getEvent(eventId, user.id) : null;
   const plan = String(formData.get("plan") ?? "").trim().slice(0, 140) || event?.title || "";
   const friendName = String(formData.get("friend") ?? "").trim().slice(0, 40);
   // The browser converts the local "back by" time to an ISO instant (with the
@@ -26,8 +26,8 @@ export async function createSafeNightAction(formData: FormData) {
   const hoursAhead = (backBy.getTime() - Date.now()) / 3_600_000;
   if (hoursAhead < 0 || hoursAhead > 24) fail("time");
 
-  const tz = event ? (getCity(event.city)?.tz ?? "Europe/Lisbon") : String(formData.get("tz") ?? "Europe/Lisbon").slice(0, 60);
-  const token = createSafeNight({
+  const tz = event ? ((await getCity(event.city))?.tz ?? "Europe/Lisbon") : String(formData.get("tz") ?? "Europe/Lisbon").slice(0, 60);
+  const token = await createSafeNight({
     travellerId: user.id,
     eventId: event?.id ?? null,
     plan,
@@ -45,7 +45,7 @@ export async function updateSafeNightAction(formData: FormData) {
   const token = String(formData.get("token") ?? "");
   const change = String(formData.get("change") ?? "");
   if (change !== "home" && change !== "cancel" && change !== "extend") redirect("/safe");
-  updateSafeNight(token, user.id, change);
+  await updateSafeNight(token, user.id, change);
   revalidatePath("/safe");
   revalidatePath(`/safe/${token}`);
   redirect(`/safe${change === "home" ? "?home=1" : ""}`);

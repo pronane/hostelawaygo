@@ -13,7 +13,7 @@ type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
-  const hostel = getHostelBySlug(slug);
+  const hostel = await getHostelBySlug(slug);
   return { title: `${hostel?.name ?? "Hostel"} · partner kit` };
 }
 
@@ -27,7 +27,7 @@ export async function generateMetadata({ params }: Props) {
  */
 export default async function PartnerKitPage({ params }: Props) {
   const { slug } = await params;
-  const hostel = getHostelBySlug(slug);
+  const hostel = await getHostelBySlug(slug);
   if (!hostel) notFound();
 
   const user = await requireStaff(`/hostel/${hostel.slug}/kit`);
@@ -46,7 +46,7 @@ export default async function PartnerKitPage({ params }: Props) {
     color: { dark: "#191310", light: "#ffffff" },
   });
 
-  const stats = getPartnerStats(hostel.id);
+  const stats = await getPartnerStats(hostel.id);
   const joinRate = stats.opens > 0 ? Math.round((stats.joins / stats.opens) * 100) : 0;
 
   return (

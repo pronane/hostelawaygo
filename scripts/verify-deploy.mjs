@@ -44,11 +44,14 @@ const run = async () => {
     record(
       "health endpoint",
       response.status === 200 && body.ok === true,
-      `${response.status} · schema ${body.schema ?? "?"} · ${body.cities ?? "?"} cities · ${body.events ?? "?"} events · ${body.payments ?? "?"} payments · ${ms}ms`
+      `${response.status} · schema ${body.schema ?? "?"} · ${body.database ?? "?"} · ${body.cities ?? "?"} cities · ${body.events ?? "?"} events · ${body.payments ?? "?"} payments · ${ms}ms`
     );
     if (body.storage === "ephemeral") {
       console.log(
-        `  !  the database is ephemeral (${body.storageWhy ?? "no disk"}) — every restart loses accounts, bookings and messages\n`
+        `  !  the database is ephemeral (${body.storageWhy ?? "no disk"}) — every restart loses accounts, bookings and messages`
+      );
+      console.log(
+        `     on a host without a disk, set TURSO_DATABASE_URL + TURSO_AUTH_TOKEN and redeploy; see docs/deploy.md#turso\n`
       );
     }
     if (body.demo) {

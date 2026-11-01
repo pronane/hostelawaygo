@@ -16,15 +16,15 @@ export async function sendMessageAction(formData: FormData) {
 
   const user = await getCurrentUser();
   if (!user) redirect(`/login?next=${encodeURIComponent(path)}`);
-  if (!getEvent(eventId, user.id)) redirect("/");
+  if (!await getEvent(eventId, user.id)) redirect("/");
   // Event chats are where strangers meet - require a confirmed email first.
   if (!user.email_verified) redirect(`${path}?chat=verify#chat`);
   if (!body) redirect(`${path}#chat`);
-  if (recentMessageCount(user.id, CHAT_WINDOW_MINUTES) >= CHAT_LIMIT) {
+  if (await recentMessageCount(user.id, CHAT_WINDOW_MINUTES) >= CHAT_LIMIT) {
     redirect(`${path}?chat=slow#chat`);
   }
 
-  addMessage(eventId, user.id, body);
+  await addMessage(eventId, user.id, body);
 
   // No redirect: the chat is live over SSE, so the message shows up on its own
   // and the form resets without the page re-navigating.
@@ -37,7 +37,7 @@ export async function reportMessageAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user) redirect(`/login?next=${encodeURIComponent(`/event/${eventId}`)}`);
 
-  reportMessage(messageId);
+  await reportMessage(messageId);
   revalidatePath(`/event/${eventId}`);
   redirect(`/event/${eventId}?chat=reported#chat`);
 }

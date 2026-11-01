@@ -28,10 +28,10 @@ export async function approvePartnerAction(formData: FormData) {
   await requireAdmin("/admin/cities");
 
   const id = Number(formData.get("hostelId"));
-  const hostel = Number.isInteger(id) ? getHostelById(id) : undefined;
+  const hostel = Number.isInteger(id) ? await getHostelById(id) : undefined;
   if (!hostel) redirect("/admin/cities?error=unknown");
 
-  if (!approveHostel(hostel.id)) redirect(`/admin/cities/${hostel.city}?error=partner`);
+  if (!await approveHostel(hostel.id)) redirect(`/admin/cities/${hostel.city}?error=partner`);
   revalidateHostel(hostel);
 
   // Tell them, because "we'll email you" was the promise on the form. With no
@@ -61,10 +61,10 @@ export async function rejectPartnerAction(formData: FormData) {
   await requireAdmin("/admin/cities");
 
   const id = Number(formData.get("hostelId"));
-  const hostel = Number.isInteger(id) ? getHostelById(id) : undefined;
+  const hostel = Number.isInteger(id) ? await getHostelById(id) : undefined;
   if (!hostel) redirect("/admin/cities?error=unknown");
 
-  if (!rejectHostel(hostel.id)) redirect(`/admin/cities/${hostel.city}?error=partner`);
+  if (!await rejectHostel(hostel.id)) redirect(`/admin/cities/${hostel.city}?error=partner`);
   revalidateHostel(hostel);
   redirect(`/admin/cities/${hostel.city}?rejected=${encodeURIComponent(hostel.name)}`);
 }
