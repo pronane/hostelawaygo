@@ -2,6 +2,7 @@ import Link from "next/link";
 import { demoLoginAction, loginAction } from "@/app/actions/auth";
 import { ACCOUNTS } from "@/lib/seed-extra";
 import { demoLoginEnabled } from "@/lib/auth";
+import OAuthButtons from "@/components/oauth-buttons";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Sign in" };
@@ -10,15 +11,23 @@ const ERRORS: Record<string, string> = {
   credentials: "That email and password don't match. Try again, or use a demo account below.",
   demo: "That demo account doesn't exist any more — reset the database and it will come back.",
   demo_off: "Demo sign-in is switched off on this site.",
+  oauth_provider: "That sign-in method isn't set up on this site.",
+  oauth_state: "That sign-in link expired or was already used. Try again.",
+  oauth_denied: "Sign-in was cancelled, so nothing changed.",
+  oauth_token: "The provider's answer didn't check out. Try again.",
+  oauth_exchange: "We couldn't finish the handshake with the provider. Try again.",
+  oauth_no_email: "That provider didn't share an email address. Create an account with your email instead.",
+  oauth_unverified_email: "That provider hasn't confirmed the email address, so it can't open an existing account. Sign in with your password.",
+  oauth_userinfo: "The provider wouldn't share your profile. Try again.",
 };
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; next?: string }>;
+  searchParams: Promise<{ error?: string; next?: string; detail?: string }>;
 }) {
-  const { error, next = "/" } = await searchParams;
-  const message = error ? ERRORS[error] ?? "Something went wrong." : null;
+  const { error, next = "/", detail } = await searchParams;
+  const message = error ? (ERRORS[error] ?? detail ?? "Something went wrong.") : null;
 
   return (
     <div className="auth">
@@ -34,6 +43,8 @@ export default async function LoginPage({
           <span>{message}</span>
         </div>
       ) : null}
+
+      <OAuthButtons next={next} divider="or with your email" />
 
       <form action={loginAction} className="auth-form">
         <input type="hidden" name="next" value={next} />

@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = "7";
+export const SCHEMA_VERSION = "8";
 
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS meta (
@@ -117,6 +117,33 @@ CREATE TABLE IF NOT EXISTS sessions (
   expires_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
+-- Social sign-in. One row per provider account, tied to exactly one traveller.
+-- (provider, subject) is the provider's own user id, which never changes even
+-- if someone changes their email address there.
+CREATE TABLE IF NOT EXISTS identities (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  traveller_id INTEGER NOT NULL REFERENCES travellers(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  email TEXT NOT NULL DEFAULT '',
+  name TEXT NOT NULL DEFAULT '',
+  linked_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_identities_subject ON identities(provider, subject);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_identities_traveller ON identities(traveller_id, provider);
+
+-- The handshake between "go to Google" and "Google sent you back": state (CSRF),
+-- PKCE verifier, OIDC nonce, and where to land afterwards. Single use.
+CREATE TABLE IF NOT EXISTS oauth_states (
+  id TEXT PRIMARY KEY,
+  provider TEXT NOT NULL,
+  verifier TEXT NOT NULL,
+  nonce TEXT NOT NULL DEFAULT '',
+  next TEXT NOT NULL DEFAULT '/',
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS messages (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -243,6 +270,8 @@ CREATE TABLE IF NOT EXISTS ingest_runs (
 /** Dropped in this order so foreign keys stay happy. */
 export const DROP_ALL = `
 DROP TABLE IF EXISTS digest_sends;
+DROP TABLE IF EXISTS oauth_states;
+DROP TABLE IF EXISTS identities;
 DROP TABLE IF EXISTS arrivals;
 DROP TABLE IF EXISTS safe_nights;
 DROP TABLE IF EXISTS email_tokens;

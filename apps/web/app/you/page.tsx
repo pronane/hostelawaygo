@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { logoutAction } from "@/app/actions/auth";
+import { logoutAction, setPasswordAction } from "@/app/actions/auth";
 import { resendVerificationAction } from "@/app/actions/verify";
 import { getSafeNights } from "@/lib/safe";
 import { getCurrentUser } from "@/lib/auth";
+import { PROVIDER_LABEL, linkedProviders } from "@/lib/oauth";
 import { getBookingsForUser, getJoinedCount, getTrips } from "@/lib/queries";
 import { formatDay, formatShortDate, todayISO } from "@/lib/time";
 import { plural } from "@/lib/format";
@@ -19,9 +20,15 @@ const VERIFY_NOTES: Record<string, string> = {
 export default async function YouPage({
   searchParams,
 }: {
-  searchParams: Promise<{ verify?: string; verified?: string; link?: string }>;
+  searchParams: Promise<{
+    verify?: string;
+    verified?: string;
+    link?: string;
+    welcome?: string;
+    password?: string;
+  }>;
 }) {
-  const { verify, verified, link } = await searchParams;
+  const { verify, verified, link, welcome, password } = await searchParams;
   const today = todayISO();
   const user = await getCurrentUser();
 
@@ -40,6 +47,7 @@ export default async function YouPage({
     );
   }
 
+  const identities = linkedProviders(user.id);
   const trips = getTrips(user.id);
   const bookings = getBookingsForUser(user.id);
   const joined = getJoinedCount(user.id);
@@ -61,6 +69,16 @@ export default async function YouPage({
           {role} · {plural(joined, "event")} joined · {plural(bookings.length, "booking")}
         </p>
       </header>
+
+      {welcome === "1" ? (
+        <div className="notice" role="status" style={{ marginBottom: 14 }}>
+          <span aria-hidden="true">👋</span>
+          <span>
+            <b>You&apos;re in.</b> Your account was created from the provider you signed in with — no
+            password to remember, and your bookings and chats are tied to it.
+          </span>
+        </div>
+      ) : null}
 
       {verified === "1" ? (
         <div className="notice" role="status" style={{ marginBottom: 14 }}>
@@ -93,6 +111,66 @@ export default async function YouPage({
           </form>
         </div>
       ) : null}
+
+      <section className="panel" style={{ marginBottom: 14 }}>
+        <div className="panel-head">How you sign in</div>
+        <div className="identity-row">
+          <b>{user.email ?? "No email on this account"}</b>
+          <span>{user.has_password ? "email + password" : "no password — signs in with a provider"}</span>
+        </div>
+        {identities.map((identity) => (
+          <div className="identity-row" key={identity.provider}>
+            <b>{PROVIDER_LABEL[identity.provider] ?? identity.provider}</b>
+            <span>{identity.email || "connected"}</span>
+          </div>
+        ))}
+        <p style={{ fontSize: 11.5, color: "#8b7d72", margin: "10px 0 0", lineHeight: 1.6 }}>
+          {identities.length
+            ? "One account, several doors. Signing in with a provider you've connected lands you here."
+            : "You can add Google, Facebook or Apple the next time you sign out and back in with one of them — same email, same account."}
+        </p>
+
+        {password === "set" ? (
+          <p style={{ fontSize: 12, color: "var(--green, #0f8a5f)", margin: "10px 0 0" }}>
+            ✓ Password added. You can sign in with either from now on.
+          </p>
+        ) : null}
+        {password === "short" || password === "mismatch" ? (
+          <p style={{ fontSize: 12, color: "#b3261e", margin: "10px 0 0" }}>
+            {password === "short" ? "Passwords need at least 8 characters." : "Those two don't match."}
+          </p>
+        ) : null}
+
+        {!user.has_password ? (
+          <form action={setPasswordAction} style={{ marginTop: 12, display: "grid", gap: 8 }}>
+            <div style={{ fontSize: 12, color: "#5f544b" }}>
+              <b>Add a password</b> so you can still get in if {identities.length ? "the provider" : "this"} stops working.
+            </div>
+            <input
+              name="password"
+              type="password"
+              required
+              minLength={8}
+              autoComplete="new-password"
+              placeholder="At least 8 characters"
+              className="field-input"
+              style={{ padding: "9px 12px", border: "1px solid var(--line)", borderRadius: 10, font: "inherit", fontSize: 13 }}
+            />
+            <input
+              name="confirm"
+              type="password"
+              required
+              minLength={8}
+              autoComplete="new-password"
+              placeholder="Same again"
+              style={{ padding: "9px 12px", border: "1px solid var(--line)", borderRadius: 10, font: "inherit", fontSize: 13 }}
+            />
+            <button type="submit" className="btn" style={{ justifySelf: "start" }}>
+              Set password
+            </button>
+          </form>
+        ) : null}
+      </section>
 
       <div className="you-grid">
         <section className="panel">
@@ -165,7 +243,8 @@ export default async function YouPage({
       <p style={{ fontSize: 11.5, color: "#8b7d72", marginTop: 22, lineHeight: 1.6 }}>
         Passwords are scrypt-hashed and sessions are httpOnly cookies with a 30-day expiry. This is
         a real auth flow, not a mock — the only shortcut is that the seeded demo accounts share one
-        password.
+        password. Social sign-in uses OAuth 2.0 with PKCE; it links to this account by verified
+        email, never by an unverified one.
       </p>
     </>
   );

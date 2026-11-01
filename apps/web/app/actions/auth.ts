@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { getDb } from "@/lib/db";
-import { demoLoginEnabled, endSession, startSession } from "@/lib/auth";
+import { demoLoginEnabled, endSession, getCurrentUser, startSession } from "@/lib/auth";
 import { ACCOUNTS } from "@/lib/seed-extra";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { sendVerification } from "@/lib/verify";
@@ -94,6 +94,26 @@ export async function signupAction(formData: FormData) {
     console.error("[signup] verification email failed", err);
   }
   redirect(next);
+}
+
+/**
+ * For accounts that arrived through a provider: a password is a way back in if
+ * the provider ever stops working for them. Only offered when there isn't one
+ * already — changing an existing password is a different flow (verify the old
+ * one first) and isn't built yet.
+ */
+export async function setPasswordAction(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login?next=/you");
+
+  const password = String(formData.get("password") ?? "");
+  const confirm = String(formData.get("confirm") ?? "");
+
+  if (password.length < 8) redirect("/you?password=short");
+  if (password !== confirm) redirect("/you?password=mismatch");
+
+  getDb().prepare("UPDATE travellers SET password_hash = ? WHERE id = ?").run(hashPassword(password), user.id);
+  redirect("/you?password=set");
 }
 
 export async function logoutAction() {

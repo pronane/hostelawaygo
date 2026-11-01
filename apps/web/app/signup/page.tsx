@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { signupAction } from "@/app/actions/auth";
+import OAuthButtons from "@/components/oauth-buttons";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Create an account" };
@@ -32,6 +33,8 @@ export default async function SignupPage({
           <span>{ERRORS[error] ?? "Something went wrong."}</span>
         </div>
       ) : null}
+
+      <OAuthButtons next={next} label="Sign up with" divider="or with your email" />
 
       <form action={signupAction} className="auth-form">
         <input type="hidden" name="next" value={next} />
