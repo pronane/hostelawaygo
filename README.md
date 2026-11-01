@@ -7,6 +7,7 @@ An event guide for hostel travellers — what's on **where you are**, and what'l
 | | |
 |---|---|
 | **Working vertical slice** | [`apps/web`](apps/web) — Next.js PWA, SQLite, seeded Lisbon + Porto, real join flow, hostel posting. Run `cd apps/web && npm install && npm run dev`. |
+| **Outreach tool** | [`apps/outreach`](apps/outreach) — finds hostels in a new city, drafts each one a letter, and sends nothing until a human approves it. Run `cd apps/outreach && npm run demo && npm start`. |
 | **Concept prototype** | [`prototype/index.html`](prototype/index.html) — the original static click-through, kept for reference. |
 | **Review & strategy** | [`docs/product-review-and-concept.md`](docs/product-review-and-concept.md) — repo audit, market check, gap analysis, MVP scope, data strategy, risks. |
 | **Legacy code** | `app/`, `myapplication/`, `java/`, `res/`, `manifests/`, `gen/` — a 2017 Android Studio template, kept for history only. Not a foundation. |

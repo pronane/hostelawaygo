@@ -58,6 +58,20 @@ Then show `/c/lisbon` on a phone. Do not demo the admin. The demo is the guest's
 
 `/partner` is the application: hostel and staff account in one step, signed in immediately, status visible while it waits. Applicants land in the city console, where approving flips them live and gives them a bookable dorm. Two things this deliberately does *not* do: it doesn't create a new city (that's the runbook in §3), and it can't be done from a traveller account — one account, one role.
 
+**The knock**
+
+Self-serve answers "how do they sign up"; it doesn't answer "how do they find out we exist" in a city where nobody has heard of us. `apps/outreach` is that: OpenStreetMap finds the hostels, their own website supplies the address, and the tool drafts one short letter each. A person reads every letter before it goes, and there is no command that skips that step.
+
+The rules that keep it a neighbour's introduction instead of a mailshot:
+
+- **Twenty, not two hundred.** One city at a time, and only cities we actually intend to open.
+- **One letter per inbox.** No sequence, no follow-up, no "just bumping this".
+- **The address came from their own site**, and the letter says so, with the page it came from. No purchased lists, ever.
+- **One click to stop**, honoured for the address and the whole domain, permanently.
+- **Nothing invented.** No guest numbers, no partnerships, no features we haven't built. The launch line is the city's real date.
+
+A city that has been mailed badly can't be mailed again — receptionists compare notes. That is the actual constraint, and it is why the tool is slow on purpose.
+
 **Never**
 
 - No channel-manager integration, no PMS, no API key, no contract to start.
