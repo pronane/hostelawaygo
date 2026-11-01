@@ -8,13 +8,9 @@ export const SESSION_COOKIE = "away_session";
 /**
  * One-click demo sign-in skips the password, so it must never be reachable on a
  * real deployment (server actions can be called directly, not just from the
- * login page). On by default in dev, opt-in elsewhere with DEMO_LOGIN=1.
+ * login page). The policy lives in ./flags so scripts can share it.
  */
-export function demoLoginEnabled(): boolean {
-  if (process.env.DEMO_LOGIN === "1") return true;
-  if (process.env.DEMO_LOGIN === "0") return false;
-  return process.env.NODE_ENV !== "production";
-}
+export { demoAccountsEnabled, demoLoginEnabled } from "./flags";
 export const CITY_COOKIE = "away_city";
 const SESSION_DAYS = 30;
 

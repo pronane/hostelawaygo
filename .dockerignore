@@ -1,0 +1,24 @@
+# Only apps/web is built, and only its sources are needed.
+**/node_modules
+**/.next
+**/data/*.db
+**/data/*.db-*
+.away
+.runtime
+.git
+.github
+e2e
+install
+prototype
+docs
+# 2017 Android template, kept for history only
+app
+myapplication
+java
+res
+manifests
+gen
+gradle
+*.iml
+*.gradle
+gradlew
