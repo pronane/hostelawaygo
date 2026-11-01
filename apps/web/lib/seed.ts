@@ -1,6 +1,7 @@
 import type { Db } from "./sqlite";
 import { SCHEMA_VERSION } from "./schema";
 import { hashPassword } from "./password";
+import { demoAccountsEnabled } from "./flags";
 import { EVENTS, HOSTELS, TRAVELLERS } from "./seed-data";
 import {
   ACCOUNTS,
@@ -138,46 +139,11 @@ export function seed(db: Db): void {
     const seeded = db.prepare("SELECT id, name FROM travellers").all<{ id: number; name: string }>();
     for (const row of seeded) travellerIdByName.set(row.name, row.id);
 
-    /* accounts: Marta gets credentials on the seeded traveller row */
-    const passwordHash = hashPassword("away1234");
-    const updateAccount = db.prepare(
-      "UPDATE travellers SET email = @email, password_hash = @hash, role = @role, hostel_id = @hostel_id, email_verified_at = datetime('now') WHERE id = @id"
-    );
-    const insertAccount = db.prepare(
-      `INSERT INTO travellers (name, initials, flag, colour, solo, languages, email, password_hash, role, hostel_id, email_verified_at)
-       VALUES (@name, @initials, @flag, @colour, 0, @languages, @email, @password_hash, @role, @hostel_id, datetime('now'))`
-    );
-
-    for (const account of ACCOUNTS) {
-      const hostelId = account.hostelSlug ? hostelIdBySlug.get(account.hostelSlug) ?? null : null;
-      if (account.travellerIndex) {
-        const row = db
-          .prepare("SELECT id FROM travellers WHERE name = ?")
-          .get<{ id: number }>(account.name);
-        if (row) {
-          updateAccount.run({
-            id: row.id,
-            email: account.email,
-            hash: passwordHash,
-            role: account.role,
-            hostel_id: hostelId,
-          });
-        }
-        continue;
-      }
-      const info = insertAccount.run({
-        name: account.name,
-        initials: initialsOf(account.name),
-        flag: account.flag ?? "🌍",
-        colour: account.colour ?? "#E7D6FF",
-        languages: account.languages ?? "English",
-        email: account.email,
-        password_hash: passwordHash,
-        role: account.role,
-        hostel_id: hostelId,
-      });
-      travellerIdByName.set(account.name, info.lastInsertRowid);
-    }
+    // The demo logins are a demo, not a fixture of the product — see
+    // seedDemoAccounts() below, and AWAY_DEMO_ACCOUNTS in docs/deploy.md.
+    if (demoAccountsEnabled()) seedDemoAccounts(db, hostelIdBySlug, travellerIdByName);
+    // A deployment gets its first real admin from the environment.
+    bootstrapAdmin(db);
 
     /* events */
     const insEvent = db.prepare(`
@@ -323,3 +289,93 @@ export function seed(db: Db): void {
 
   run();
 }
+
+/**
+ * The first real account on a deployment.
+ *
+ * Approving a hostel application or reading the digest needs the admin role, and
+ * no shell is not an excuse for shipping the README's demo password. Set
+ * AWAY_BOOTSTRAP_EMAIL and AWAY_BOOTSTRAP_PASSWORD before the first boot and
+ * that admin exists. Runs only when the database is created, so it never
+ * overwrites a password someone has changed since.
+ */
+function bootstrapAdmin(db: Db): void {
+  const email = process.env.AWAY_BOOTSTRAP_EMAIL?.trim().toLowerCase();
+  const password = process.env.AWAY_BOOTSTRAP_PASSWORD ?? "";
+
+  if (!email && !password) return;
+  if (!email || password.length < 8) {
+    console.warn(
+      "[seed] AWAY_BOOTSTRAP_EMAIL and AWAY_BOOTSTRAP_PASSWORD (8+ characters) must be set together — no admin was created."
+    );
+    return;
+  }
+
+  const name = process.env.AWAY_BOOTSTRAP_NAME?.trim() || "Ops";
+  const hash = hashPassword(password);
+  const existing = db.prepare("SELECT id FROM travellers WHERE email = ?").get<{ id: number }>(email);
+
+  if (existing) {
+    db.prepare(
+      "UPDATE travellers SET password_hash = ?, role = 'admin', email_verified_at = datetime('now') WHERE id = ?"
+    ).run(hash, existing.id);
+  } else {
+    db.prepare(
+      `INSERT INTO travellers (name, initials, flag, colour, solo, languages, email, password_hash, role, email_verified_at)
+       VALUES (?, ?, '🌍', '#E7D6FF', 0, 'English', ?, ?, 'admin', datetime('now'))`
+    ).run(name, initialsOf(name), email, hash);
+  }
+
+  console.log(`[seed] admin ${email} is ready`);
+}
+
+/**
+ * The four seeded logins (password away1234, one of them an admin). They exist so
+ * the login page can offer "jump straight in" on a machine you own; a deployment
+ * asks for `AWAY_DEMO_ACCOUNTS=0` (the default once NODE_ENV=production) and
+ * bootstraps a real admin from the environment instead.
+ */
+function seedDemoAccounts(
+  db: Db,
+  hostelIdBySlug: Map<string, number>,
+  travellerIdByName: Map<string, number>
+): void {
+  const passwordHash = hashPassword("away1234");
+  const updateAccount = db.prepare(
+    "UPDATE travellers SET email = @email, password_hash = @hash, role = @role, hostel_id = @hostel_id, email_verified_at = datetime('now') WHERE id = @id"
+  );
+  const insertAccount = db.prepare(
+    `INSERT INTO travellers (name, initials, flag, colour, solo, languages, email, password_hash, role, hostel_id, email_verified_at)
+     VALUES (@name, @initials, @flag, @colour, 0, @languages, @email, @password_hash, @role, @hostel_id, datetime('now'))`
+  );
+
+  for (const account of ACCOUNTS) {
+    const hostelId = account.hostelSlug ? hostelIdBySlug.get(account.hostelSlug) ?? null : null;
+    if (account.travellerIndex) {
+      const row = db.prepare("SELECT id FROM travellers WHERE name = ?").get<{ id: number }>(account.name);
+      if (row) {
+        updateAccount.run({
+          id: row.id,
+          email: account.email,
+          hash: passwordHash,
+          role: account.role,
+          hostel_id: hostelId,
+        });
+      }
+      continue;
+    }
+    const info = insertAccount.run({
+      name: account.name,
+      initials: initialsOf(account.name),
+      flag: account.flag ?? "🌍",
+      colour: account.colour ?? "#E7D6FF",
+      languages: account.languages ?? "English",
+      email: account.email,
+      password_hash: passwordHash,
+      role: account.role,
+      hostel_id: hostelId,
+    });
+    travellerIdByName.set(account.name, info.lastInsertRowid);
+  }
+}
+

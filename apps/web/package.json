@@ -2,6 +2,9 @@
   "name": "away-web",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.5"
+  },
   "scripts": {
     "dev": "next dev -H 0.0.0.0 -p 3000",
     "build": "next build",
@@ -9,7 +12,8 @@
     "db:reset": "node scripts/reset-db.mjs",
     "ingest": "node --no-warnings scripts/ingest.mjs",
     "digest": "node scripts/digest.mjs",
-    "test:oauth": "node --no-warnings scripts/oauth-selftest.mjs"
+    "test:oauth": "node --no-warnings scripts/oauth-selftest.mjs",
+    "admin:create": "node --no-warnings scripts/create-admin.mjs"
   },
   "dependencies": {
     "next": "^16.4.3",

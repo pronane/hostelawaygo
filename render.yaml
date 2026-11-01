@@ -1,0 +1,90 @@
+# Away on Render — the real one.
+#
+# New → Blueprint in the Render dashboard, point it at this repository, and it
+# reads this file. Two things to fill in by hand afterwards (they are secrets, so
+# they are not in here): APP_URL, and AWAY_BOOTSTRAP_EMAIL / _PASSWORD.
+#
+# A SQLite file needs somewhere to live, and neither of those things works on a
+# free instance — this service therefore runs on Starter ($7/mo) with a 1 GB disk
+# ($0.25/mo). For a free, throwaway demo instead, use render.demo.yaml.
+#
+# One instance only: you cannot scale a service that has a disk attached, and a
+# second instance would mean a second copy of the database.
+
+services:
+  - type: web
+    name: away
+    runtime: node
+    plan: starter
+    region: frankfurt
+    branch: master
+    autoDeploy: true
+    buildCommand: cd apps/web && npm ci --no-audit --no-fund && npm run build
+    startCommand: cd apps/web && npm start
+    healthCheckPath: /api/health
+    disk:
+      name: away-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      # node:sqlite needs 22.5+; the same pin as .node-version
+      - key: NODE_VERSION
+        value: 22.22.3
+
+      # Where the database file lives, on the disk.
+      - key: AWAY_DB_PATH
+        value: /var/data/away.db
+
+      # Set this to the URL Render gives you, e.g. https://away.onrender.com.
+      # It is what OAuth redirect URIs and emailed links are built from.
+      - key: APP_URL
+        sync: false
+
+      # No demo buttons, and no demo accounts with the password from the README.
+      - key: DEMO_LOGIN
+        value: "0"
+      - key: AWAY_DEMO_ACCOUNTS
+        value: "0"
+
+      # The first real account, created once when the database is built.
+      # 8+ characters, and only used on the first boot.
+      - key: AWAY_BOOTSTRAP_EMAIL
+        sync: false
+      - key: AWAY_BOOTSTRAP_PASSWORD
+        sync: false
+
+      # Generated once by Render, then kept.
+      - key: INGEST_TOKEN
+        generateValue: true
+      - key: DIGEST_TOKEN
+        generateValue: true
+      - key: PAYMENT_WEBHOOK_SECRET
+        generateValue: true
+
+      # Optional. Without these the site works, and the sign-in providers are
+      # simply absent (email + password still is), payments stay in the sandbox
+      # and no email is sent. See "Turning things on" in docs/deploy.md.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: FACEBOOK_APP_ID
+        sync: false
+      - key: FACEBOOK_APP_SECRET
+        sync: false
+      - key: APPLE_CLIENT_ID
+        sync: false
+      - key: APPLE_TEAM_ID
+        sync: false
+      - key: APPLE_KEY_ID
+        sync: false
+      - key: APPLE_PRIVATE_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false

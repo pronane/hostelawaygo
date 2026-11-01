@@ -81,6 +81,13 @@ Both servers run in the background with pid files in `.away/` and logs in
 `.away/logs/`. The web app is at <http://localhost:3000>, the outreach tool at
 <http://localhost:3100> (its password is in `.away/env`).
 
+## Putting it on the internet
+
+Local install and deployment are different problems: this one is about a machine
+that keeps its files, that one is about a machine that gets replaced. See
+[`docs/deploy.md`](../docs/deploy.md) — Render first, because it's one blueprint
+and a disk.
+
 ## The end-to-end test
 
 `npm test` inside `e2e/` starts both servers on throwaway databases

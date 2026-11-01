@@ -31,6 +31,9 @@ Production:
 npm run build && npm run start
 ```
 
+Putting it on the internet — Render, Fly, Railway, a VPS, and the one setting
+that decides whether your data survives: **[docs/deploy.md](../../docs/deploy.md)**.
+
 The database is created and seeded automatically on the first request at `data/away.db`. Seed dates are relative to **today**, so the demo always feels live. After a few days they drift — re-anchor with:
 
 ```bash
@@ -115,6 +118,7 @@ Everything else — state, PKCE, nonce, JWKS lookup, signature check, linking �
 | `POST /api/digest` | Sends the arrivals digest (`{ dryRun }`). Requires `x-digest-token` or an admin session |
 | `GET /api/events/[id]/stream` | SSE feed of new chat messages (`Last-Event-ID` aware) |
 | `POST /api/payments/webhook` | Signed provider callbacks: `payment.paid`, `payment.refunded`, `checkout.session.completed` |
+| `GET /api/health` | Liveness for a deploy platform: `{ ok, schema, cities, events, payments, demo }`, `503` if the schema doesn't match the build |
 
 ## Growth
 
@@ -173,6 +177,9 @@ Imported events carry the venue's real coordinates (so walking times are correct
 | `FACEBOOK_APP_ID` + `FACEBOOK_APP_SECRET` | "Continue with Facebook" | button hidden |
 | `APPLE_CLIENT_ID` + `APPLE_TEAM_ID` + `APPLE_KEY_ID` + `APPLE_PRIVATE_KEY` | "Continue with Apple" (ES256 client secret, form-post callback) | button hidden |
 | `OAUTH_MOCK` | `1` points the three providers at the local stand-in — development only | real providers only |
+| `AWAY_DEMO_ACCOUNTS` | `1` seeds the four demo logins (password `away1234`, one is an admin) even in production | on only where demo sign-in is on; **off in production** |
+| `AWAY_BOOTSTRAP_EMAIL` + `AWAY_BOOTSTRAP_PASSWORD` | creates that admin when the database is first built — the way a deployment gets its first user | no admin exists; use `npm run admin:create` |
+| `AWAY_DB_PATH` | where the SQLite file lives (a mounted volume on a server) | `data/away.db` |
 
 Webhooks are signed Stripe-style: `stripe-signature: t=<unix>,v1=<hmac-sha256 of "${t}.${body}">`, five-minute replay window, 400 on a bad or stale signature. Handlers are idempotent, so retries are safe.
 

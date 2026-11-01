@@ -1,0 +1,56 @@
+# Away on Render — the free demo.
+#
+#   New → Blueprint → pick this repository → set the Blueprint path to
+#   render.demo.yaml
+#
+# Free instance, no disk, so the database lives inside the container and is
+# rebuilt from the seed whenever the instance restarts — which, on free, is every
+# time it wakes up after 15 idle minutes. That is the point: the feed always has
+# something on tonight, and nothing anyone does in the demo survives.
+#
+# Demo sign-in is ON here: every button on /login signs you in as a seeded
+# account, including the admin. Do not put real people's data in this.
+#
+# A free instance has 256 MB of RAM. Next 16 plus SQLite runs inside that, but
+# not with a lot of headroom — if it restarts under load, that is why, and
+# render.yaml (Starter) is the answer.
+
+services:
+  - type: web
+    name: away-demo
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: master
+    autoDeploy: true
+    buildCommand: cd apps/web && npm ci --no-audit --no-fund && npm run build
+    startCommand: cd apps/web && npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.22.3
+
+      # No disk on free: the default data/away.db inside the container is right.
+      - key: APP_URL
+        sync: false
+
+      # The demo: one-click sign-in as Marta / Ana / ops, and the seeded logins.
+      - key: DEMO_LOGIN
+        value: "1"
+      - key: AWAY_DEMO_ACCOUNTS
+        value: "1"
+
+      # A stand-in for Google/Facebook/Apple, so the social buttons work with no
+      # developer console. This also has to be allowed in production, which is
+      # what ALLOW_PROD means here — a demo instance, not a real one.
+      - key: OAUTH_MOCK
+        value: "1"
+      - key: OAUTH_MOCK_ALLOW_PROD
+        value: "1"
+
+      - key: INGEST_TOKEN
+        generateValue: true
+      - key: DIGEST_TOKEN
+        generateValue: true
+      - key: PAYMENT_WEBHOOK_SECRET
+        generateValue: true
