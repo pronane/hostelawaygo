@@ -6,6 +6,16 @@ Next.js 16 (App Router) · React 19 · TypeScript · SQLite via Node's built-in 
 
 ## Run it
 
+The one-command path — installs Node if it's missing, builds the database, and
+finishes by driving a real browser through the whole app:
+
+```bash
+./install/install.sh          # macOS / Linux
+./bin/away start --open       # afterwards, to run it
+```
+
+By hand:
+
 ```bash
 cd apps/web
 npm install

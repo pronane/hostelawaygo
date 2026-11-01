@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev -H 0.0.0.0 -p 3000",
     "build": "next build",
-    "start": "next start -H 0.0.0.0 -p 3000",
+    "start": "next start -H 0.0.0.0",
     "db:reset": "node scripts/reset-db.mjs",
     "ingest": "node --no-warnings scripts/ingest.mjs",
     "digest": "node scripts/digest.mjs",

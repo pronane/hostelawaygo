@@ -1,0 +1,259 @@
+#!/usr/bin/env bash
+#
+# Away — start, stop and look at the thing you just installed.
+#
+#   ./bin/away start            both servers, in the background
+#   ./bin/away start --open     …and open the browser
+#   ./bin/away status           what is running, on which port
+#   ./bin/away logs web -f      follow the web app's log
+#   ./bin/away stop             stop everything
+#   ./bin/away test             the click-through test (starts its own servers)
+#   ./bin/away db               re-apply/verify the schema and print the tables
+#
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+# Node installed by the installer lives here when the system had none.
+if [ -x "$ROOT/.runtime/node/bin/node" ]; then
+  export PATH="$ROOT/.runtime/node/bin:$PATH"
+fi
+
+if [ -f .away/env ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . .away/env
+  set +a
+fi
+
+PORT="${AWAY_PORT:-3000}"
+OUTREACH_PORT="${AWAY_OUTREACH_PORT:-3100}"
+RUN_OUTREACH=1
+OPEN_AFTER=0
+
+LOG_DIR="$ROOT/.away/logs"
+WEB_PID_FILE="$ROOT/.away/web.pid"
+OUTREACH_PID_FILE="$ROOT/.away/outreach.pid"
+
+if [ -t 1 ]; then
+  BOLD=$'\033[1m'; DIM=$'\033[2m'; OFF=$'\033[0m'
+  GREEN=$'\033[32m'; YELLOW=$'\033[33m'; RED=$'\033[31m'; PURPLE=$'\033[35m'
+else
+  BOLD=""; DIM=""; OFF=""; GREEN=""; YELLOW=""; RED=""; PURPLE=""
+fi
+ok()   { printf '%s✓%s %s\n' "$GREEN" "$OFF" "$*"; }
+info() { printf '%s·%s %s\n' "$DIM" "$OFF" "$*"; }
+warn() { printf '%s!%s %s\n' "$YELLOW" "$OFF" "$*"; }
+bad()  { printf '%s✗%s %s\n' "$RED" "$OFF" "$*" >&2; }
+
+port_open() { curl -fsS -o /dev/null --max-time 2 "http://127.0.0.1:$1$2" 2>/dev/null; }
+
+pid_alive() { [ -n "${1:-}" ] && kill -0 "$1" 2>/dev/null; }
+
+read_pid() { [ -f "$1" ] && cat "$1" 2>/dev/null || echo ""; }
+
+wait_for() { # wait_for url seconds
+  local url="$1" seconds="$2" waited=0
+  while [ "$waited" -lt "$seconds" ]; do
+    if curl -fsS -o /dev/null --max-time 2 "$url" 2>/dev/null; then return 0; fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  return 1
+}
+
+start_web() {
+  local pid; pid="$(read_pid "$WEB_PID_FILE")"
+  if pid_alive "$pid"; then
+    ok "web app already running (pid $pid) on http://localhost:$PORT"
+    return 0
+  fi
+  if port_open "$PORT" "/"; then
+    warn "something already answers on port $PORT — not starting a second one"
+    warn "stop it, or start on another port:  ./bin/away start --port 3001"
+    return 1
+  fi
+  if [ ! -f apps/web/.next/BUILD_ID ]; then
+    bad "the web app is not built — run ./install/install.sh (or: cd apps/web && npm run build)"
+    return 1
+  fi
+
+  mkdir -p "$LOG_DIR"
+  info "starting the web app…"
+  (
+    cd "$ROOT/apps/web"
+    nohup node ./node_modules/next/dist/bin/next start -H 0.0.0.0 -p "$PORT" \
+      >>"$LOG_DIR/web.log" 2>&1 &
+    echo $! > "$WEB_PID_FILE"
+    echo "$PORT" > "$ROOT/.away/web.port"
+  )
+
+  if wait_for "http://127.0.0.1:$PORT/" 90; then
+    ok "web app    http://localhost:$PORT   (pid $(read_pid "$WEB_PID_FILE"), log .away/logs/web.log)"
+  else
+    bad "the web app did not answer in 90s — the log ends with:"
+    tail -n 20 "$LOG_DIR/web.log" >&2 || true
+    return 1
+  fi
+}
+
+start_outreach() {
+  local pid; pid="$(read_pid "$OUTREACH_PID_FILE")"
+  if pid_alive "$pid"; then
+    ok "outreach already running (pid $pid) on http://localhost:$OUTREACH_PORT"
+    return 0
+  fi
+  if port_open "$OUTREACH_PORT" "/healthz"; then
+    warn "something already answers on port $OUTREACH_PORT — not starting a second one"
+    return 0
+  fi
+
+  mkdir -p "$LOG_DIR"
+  info "starting the outreach tool…"
+  (
+    cd "$ROOT/apps/outreach"
+    OUTREACH_PORT="$OUTREACH_PORT" \
+    OUTREACH_PASSWORD="${OUTREACH_PASSWORD:-}" \
+    OUTREACH_SECRET="${OUTREACH_SECRET:-}" \
+    OUTREACH_POSTAL_ADDRESS="${OUTREACH_POSTAL_ADDRESS:-}" \
+    AWAY_APP_URL="http://localhost:$PORT" \
+    OUTREACH_PUBLIC_URL="http://localhost:$OUTREACH_PORT" \
+    nohup node --no-warnings server.js >>"$LOG_DIR/outreach.log" 2>&1 &
+    echo $! > "$OUTREACH_PID_FILE"
+    echo "$OUTREACH_PORT" > "$ROOT/.away/outreach.port"
+  )
+
+  if wait_for "http://127.0.0.1:$OUTREACH_PORT/healthz" 45; then
+    ok "outreach   http://localhost:$OUTREACH_PORT   (password in .away/env)"
+  else
+    warn "the outreach tool did not answer — see .away/logs/outreach.log"
+    return 0
+  fi
+}
+
+stop_one() { # stop_one pidfile label
+  local pid; pid="$(read_pid "$1")"
+  if ! pid_alive "$pid"; then
+    rm -f "$1"
+    info "$2 is not running"
+    return 0
+  fi
+  kill "$pid" 2>/dev/null || true
+  local waited=0
+  while pid_alive "$pid" && [ "$waited" -lt 10 ]; do sleep 0.5; waited=$((waited + 1)); done
+  if pid_alive "$pid"; then kill -9 "$pid" 2>/dev/null || true; fi
+  rm -f "$1"
+  ok "$2 stopped"
+}
+
+open_browser() {
+  local url="http://localhost:$PORT"
+  if command -v open >/dev/null 2>&1; then open "$url"
+  elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$url" >/dev/null 2>&1 &
+  else warn "could not find a way to open a browser — go to $url"; fi
+}
+
+command="${1:-help}"
+shift || true
+
+# Flags may appear anywhere; positionals are kept so `logs outreach -f` works.
+FOLLOW=0
+EXTRA=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --port) PORT="${2:?--port needs a number}"; shift 2 ;;
+    --port=*) PORT="${1#*=}"; shift ;;
+    --outreach-port) OUTREACH_PORT="${2:?--outreach-port needs a number}"; shift 2 ;;
+    --outreach-port=*) OUTREACH_PORT="${1#*=}"; shift ;;
+    --open) OPEN_AFTER=1; shift ;;
+    --no-outreach) RUN_OUTREACH=0; shift ;;
+    -f|--follow) FOLLOW=1; shift ;;
+    *) EXTRA+=("$1"); shift ;;
+  esac
+done
+if [ ${#EXTRA[@]} -gt 0 ]; then set -- "${EXTRA[@]}"; fi
+
+case "$command" in
+  start)
+    if ! start_web; then
+      bad "the web app is not running"
+      exit 1
+    fi
+    if [ "$RUN_OUTREACH" = "1" ]; then start_outreach || true; fi
+    printf '\n  %s%sReady%s  http://localhost:%s\n\n' "$BOLD" "$GREEN" "$OFF" "$PORT"
+    if [ "$OPEN_AFTER" = "1" ]; then open_browser; fi
+    ;;
+  stop)
+    stop_one "$WEB_PID_FILE" "web app"
+    stop_one "$OUTREACH_PID_FILE" "outreach"
+    ;;
+  restart)
+    stop_one "$WEB_PID_FILE" "web app" >/dev/null
+    stop_one "$OUTREACH_PID_FILE" "outreach" >/dev/null
+    start_web
+    if [ "$RUN_OUTREACH" = "1" ]; then start_outreach; fi
+    ;;
+  status)
+    if [ -f .away/web.port ]; then PORT="$(cat .away/web.port)"; fi
+    if [ -f .away/outreach.port ]; then OUTREACH_PORT="$(cat .away/outreach.port)"; fi
+    web_pid="$(read_pid "$WEB_PID_FILE")"
+    if pid_alive "$web_pid"; then ok "web app    running (pid $web_pid)  http://localhost:$PORT"
+    elif port_open "$PORT" "/"; then warn "port $PORT is answering, but not from this checkout"
+    else info "web app    stopped"; fi
+
+    outreach_pid="$(read_pid "$OUTREACH_PID_FILE")"
+    if pid_alive "$outreach_pid"; then ok "outreach   running (pid $outreach_pid)  http://localhost:$OUTREACH_PORT"
+    elif port_open "$OUTREACH_PORT" "/healthz"; then warn "port $OUTREACH_PORT is answering, but not from this checkout"
+    else info "outreach   stopped"; fi
+
+    [ -f apps/web/data/away.db ] && info "database   apps/web/data/away.db ($(du -h apps/web/data/away.db | cut -f1))"
+    ;;
+  logs)
+    which="${1:-web}"
+    case "$which" in
+      web|outreach) ;;
+      *) which="web" ;;
+    esac
+    if [ "$FOLLOW" = "1" ]; then
+      tail -n 40 -f "$LOG_DIR/$which.log"
+    else
+      tail -n 80 "$LOG_DIR/$which.log" 2>/dev/null || info "no log yet at .away/logs/$which.log"
+    fi
+    ;;
+  open)
+    open_browser
+    ;;
+  test|e2e)
+    if [ ! -d e2e/node_modules/@playwright ]; then
+      bad "test dependencies are missing — run ./install/install.sh"
+      exit 1
+    fi
+    ( cd e2e && npm test )
+    ;;
+  db)
+    ( cd apps/web && node --no-warnings scripts/db-init.mjs )
+    ;;
+  reset)
+    warn "this deletes the local database and rebuilds it from the seed"
+    ( cd apps/web && node scripts/reset-db.mjs )
+    ( cd apps/web && node --no-warnings scripts/db-init.mjs )
+    ;;
+  help|--help|-h|"")
+    cat <<USAGE
+${BOLD}away${OFF} — run it, look at it, test it
+
+  ./bin/away start [--open] [--no-outreach] [--port N] [--outreach-port N]
+  ./bin/away stop | restart | status
+  ./bin/away logs [web|outreach] [-f]
+  ./bin/away open
+  ./bin/away test          the browser click-through (no servers of its own needed)
+  ./bin/away db            apply/verify the schema, print the tables
+  ./bin/away reset         delete the local database and rebuild it
+USAGE
+    ;;
+  *)
+    bad "unknown command: $command"
+    exec "$0" help
+    ;;
+esac
