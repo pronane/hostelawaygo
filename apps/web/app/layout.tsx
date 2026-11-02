@@ -67,7 +67,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
             <p className="rail-note">
               <b>HERE</b> is the city you&apos;re in. <b>NEXT</b> is the city you&apos;re going
-              to, matched to your exact dates.
+              to, matched to your exact dates.{" "}
+              {staff ? null : (
+                <Link href="/hostels" className="rail-more">
+                  Run a hostel?
+                </Link>
+              )}
             </p>
           </aside>
 

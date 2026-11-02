@@ -89,7 +89,8 @@ Everything else — state, PKCE, nonce, JWKS lookup, signature check, linking �
 
 | Route | What it does |
 |---|---|
-| `/` | HERE — the current city's feed grouped by day, filter chips (`/?f=free`, `/?f=solo`, …), city switcher |
+| `/` | HERE — the current city's feed grouped by day, filter chips (`/?f=free`, `/?f=solo`, …), city switcher. A stranger with no session and no city cookie gets a short explanation above the feed first (`components/welcome.tsx`) |
+| `/hostels` | For hostels: what the front desk gets, a day with Away, what it costs, and three ways to start. The supply-side landing page |
 | `/next` | NEXT — the next city's events filtered to your trip window; out-of-window cards are greyed, not hidden |
 | `/explore` | Every **live** city, with its hostels and what's on; cities still in `opening` are named at the bottom as "opening next" |
 | `/c/[slug]` | Public city page — "What's on in Lisbon this week", grouped by day, with JSON-LD and a canonical URL. 404s unless the city is live |
@@ -98,7 +99,7 @@ Everything else — state, PKCE, nonce, JWKS lookup, signature check, linking �
 | `/event/[id]` | Event detail: traveller lens, who's going, join, share, **persisted chat** with report links |
 | `/hostel/[slug]` | Hostel page, per-night availability for a date range, booking form |
 | `/hostel/[slug]/kit` | Partner kit (staff/admin): printable poster + dorm sticker with the hostel's QR, check-in lines, the attribution funnel |
-| `/partner` | Self-serve hostel application: hostel + staff account in one step, status while it waits, one-click demo login for the pending applicant |
+| `/partner` | Self-serve hostel application: hostel + staff account in one step, status while it waits, one-click demo login for the pending applicant. A city we don't have yet can be typed in — it is created as `opening` and the applicant becomes its first hostel |
 | `/booking/[code]` | Receipt, sandbox payment, cancellation |
 | `/trips` | Your bookings, grouped by city |
 | `/you` | Account, how you sign in (password + connected providers), languages, joined events, email confirmation |

@@ -268,6 +268,39 @@ export async function createCity(input: NewCityInput): Promise<{ ok: true } | { 
   return { ok: true };
 }
 
+/**
+ * A city somebody asked for, before anyone says it is a good idea.
+ *
+ * Deliberately not `createCity`: that one refuses any record that is not
+ * launch-ready (centre, intro, timezone), which is right for an operator
+ * filling in a city and wrong for a hostel owner on the internet. This writes
+ * the least a city needs to exist — a slug, a name, a country, a timezone — as
+ * `opening`, so the application that triggered it has something to hang off
+ * and the pipeline shows a partner already waiting in a city we had not listed.
+ *
+ * Nothing public renders an `opening` city, so an empty intro and a 0,0 centre
+ * are invisible until ops promotes it.
+ */
+export async function createOpeningCity(input: {
+  slug: string;
+  name: string;
+  country: string;
+  tz: string;
+}): Promise<{ ok: true; created: boolean }> {
+  const db = getDb();
+  const existing = await db.prepare("SELECT 1 AS x FROM cities WHERE slug = ?").get(input.slug);
+  if (existing) return { ok: true, created: false };
+
+  await db
+    .prepare(
+      `INSERT INTO cities (slug, name, country, tz, emoji, intro, lat, lng, status, launch_on)
+       VALUES (@slug, @name, @country, @tz, '📍', '', 0, 0, 'opening', NULL)`
+    )
+    .run(input);
+
+  return { ok: true, created: true };
+}
+
 export async function setCityStatus(slug: string, status: CityStatus, launchOn?: string | null): Promise<void> {
   const db = getDb();
   if (status === "live") {
