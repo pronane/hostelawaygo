@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { EventCard } from "@/components/event-card";
+import { Welcome } from "@/components/welcome";
 import { CityPicker } from "@/components/city-picker";
 import { FILTERS } from "@/lib/constants";
 import { CITY_COOKIE, getCurrentUser } from "@/lib/auth";
 import {
+  getAllHostels,
   getCityEvents,
   getHostelBySlug,
   getLiveCities,
@@ -37,6 +39,10 @@ export default async function HerePage({ searchParams }: Props) {
   const groups = groupByDay(filtered);
   const trip = await getTrip(city.slug, user?.id ?? null);
   const cities = await getLiveCities();
+  // Somebody who has never picked a city and has no session is a stranger, and a
+  // stranger looking at a feed of somebody else's week has no idea what this is.
+  // The feed stays — it is the product — but it needs a sentence in front of it.
+  const firstTime = !user && !jar.get(CITY_COOKIE)?.value;
   // A scan from a hostel in a city that isn't live yet must not greet you with
   // somebody else's city in the feed below.
   const scanned = from ? await getHostelBySlug(from) : undefined;
@@ -44,12 +50,26 @@ export default async function HerePage({ searchParams }: Props) {
 
   return (
     <>
+      {firstTime ? (
+        <Welcome
+          city={city}
+          hostels={(await getAllHostels()).length}
+          cities={cities.length}
+          events={events.length}
+          walkable={events.filter((e) => e.walk_minutes <= 15).length}
+        />
+      ) : null}
+
       <header className="page-head">
         <div className="eyebrow">
-          <span className="live" /> Here · {formatDay(today)}
+          <span className="live" /> {firstTime ? "On in" : "Here"} · {formatDay(today)}
         </div>
         <div className="title-row">
-          <h1 className="page-title">{city.name}</h1>
+          {firstTime ? (
+            <h2 className="page-title">{city.name}</h2>
+          ) : (
+            <h1 className="page-title">{city.name}</h1>
+          )}
           <CityPicker cities={cities} current={city.slug} next="/" />
         </div>
         <p className="page-sub">

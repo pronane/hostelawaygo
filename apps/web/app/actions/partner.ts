@@ -3,8 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentUser, startSession } from "@/lib/auth";
+import { citySlugFrom } from "@/lib/cities";
 import { hashPassword } from "@/lib/password";
-import { createPartnerApplication, getCity } from "@/lib/queries";
+import { createOpeningCity, createPartnerApplication, getCity } from "@/lib/queries";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -32,8 +33,33 @@ export async function applyPartnerAction(formData: FormData) {
 
   const fail = (code: string) => redirect(`/partner?error=${code}`);
 
+  // A hostel in a city we have never heard of is the whole growth problem in
+  // one row. The form lets them type it; the city is created as `opening`, so
+  // the application has somewhere to land and the pipeline shows a partner
+  // waiting in a city we had not listed. Their timezone matters because every
+  // date they post will be rendered in it later.
+  let city = citySlug;
+  if (city === "other") {
+    const typedName = String(formData.get("cityName") ?? "").trim().slice(0, 60);
+    const typedCountry = String(formData.get("cityCountry") ?? "").trim().slice(0, 60);
+    const typedTz = String(formData.get("cityTz") ?? "").trim().slice(0, 60);
+    const slug = citySlugFrom(typedName);
+    if (typedName.length < 2 || typedCountry.length < 2 || !slug) fail("city");
+
+    if (!await getCity(slug)) {
+      const created = await createOpeningCity({
+        slug,
+        name: typedName.replace(/\b\w/g, (c) => c.toUpperCase()),
+        country: typedCountry,
+        tz: typedTz || "Europe/Lisbon",
+      });
+      if (!created.ok) fail("city");
+    }
+    city = slug;
+  }
+
   if (hostelName.length < 2) fail("name");
-  if (!await getCity(citySlug)) fail("city");
+  if (!await getCity(city)) fail("city");
   if (area.length < 2) fail("area");
   if (description.length < 40) fail("description");
   if (!Number.isInteger(beds) || beds < 1 || beds > 2000) fail("beds");
@@ -43,7 +69,7 @@ export async function applyPartnerAction(formData: FormData) {
   if (password.length < 8) fail("password");
 
   const result = await createPartnerApplication({
-    city: citySlug,
+    city,
     name: hostelName,
     area,
     description,
@@ -62,5 +88,9 @@ export async function applyPartnerAction(formData: FormData) {
 
   await startSession(result.travellerId);
   revalidatePath("/admin/cities");
+  if (city !== citySlug) {
+    // They just created a city. Say so, rather than thanking them generically.
+    redirect(`/partner?submitted=1&newCity=${encodeURIComponent(city)}`);
+  }
   redirect("/partner?submitted=1");
 }

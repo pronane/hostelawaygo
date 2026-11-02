@@ -2,8 +2,8 @@ import Link from "next/link";
 import { applyPartnerAction } from "@/app/actions/partner";
 import { logoutAction } from "@/app/actions/auth";
 import { getCurrentUser } from "@/lib/auth";
-import { CITY_STATUS } from "@/lib/cities";
-import { getAllHostels, getCities } from "@/lib/queries";
+import { CITY_STATUS, LAUNCH_BAR } from "@/lib/cities";
+import { getAllHostels, getCities, getCity } from "@/lib/queries";
 import { formatDay } from "@/lib/time";
 import { plural } from "@/lib/format";
 
@@ -16,7 +16,7 @@ export const metadata = {
 
 const ERRORS: Record<string, string> = {
   name: "Give the hostel its name.",
-  city: "Pick the city the hostel is in.",
+  city: "Pick the city the hostel is in — or type the name and country of a city we haven't got yet.",
   area: "Which neighbourhood is it in? Travellers filter by walkable areas.",
   description: "Write at least a sentence — this is the text travellers read on your page.",
   beds: "How many beds? A number between 1 and 2,000.",
@@ -40,14 +40,16 @@ function Notice({ tone, children }: { tone: "ok" | "warn"; children: React.React
 export default async function PartnerPage({
   searchParams,
 }: {
-  searchParams: Promise<{ submitted?: string; pending?: string; error?: string }>;
+  searchParams: Promise<{ submitted?: string; pending?: string; error?: string; newCity?: string }>;
 }) {
-  const { submitted, pending, error } = await searchParams;
+  const { submitted, pending, error, newCity } = await searchParams;
   const user = await getCurrentUser();
   const cities = await getCities();
   const myHostel = user?.hostel_id
     ? (await getAllHostels()).find((h) => h.id === user.hostel_id) ?? null
     : null;
+
+  const openedCity = newCity ? await getCity(newCity) : undefined;
 
   const errorMessage = error
     ? ERRORS[error] ?? (error.length > 40 ? decodeURIComponent(error) : "Something wasn't right. Try again.")
@@ -67,8 +69,19 @@ export default async function PartnerPage({
       {errorMessage ? <Notice tone="warn">{errorMessage}</Notice> : null}
       {submitted ? (
         <Notice tone="ok">
-          <b>Application received.</b> It&apos;s in front of a human now — usually within two working
-          days. You can sign in any time to check.
+          {openedCity ? (
+            <>
+              <b>{openedCity.name} is on the list now.</b> You&apos;re its first hostel, so the city
+              sits as <em>opening</em> until enough neighbours join you —{" "}
+              {LAUNCH_BAR.partners} partners and {LAUNCH_BAR.events} things on in a week is the bar.
+              Your application is in front of a human meanwhile.
+            </>
+          ) : (
+            <>
+              <b>Application received.</b> It&apos;s in front of a human now — usually within two
+              working days. You can sign in any time to check.
+            </>
+          )}
         </Notice>
       ) : null}
       {pending && !submitted ? (
@@ -200,9 +213,46 @@ export default async function PartnerPage({
                         {city.status === "live" ? " — live" : ` — ${CITY_STATUS[city.status].label.toLowerCase()}`}
                       </option>
                     ))}
+                    <option value="other">My city isn&apos;t listed…</option>
                   </select>
                 </div>
               </div>
+
+              <fieldset
+                className="panel"
+                style={{ margin: "0 0 14px", padding: "12px 14px", borderStyle: "dashed" }}
+              >
+                <legend style={{ fontSize: 11, letterSpacing: ".1em", textTransform: "uppercase", fontWeight: 800, color: "var(--muted)", padding: "0 6px" }}>
+                  Only if you chose &ldquo;my city isn&apos;t listed&rdquo;
+                </legend>
+                <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--muted)", lineHeight: 1.5 }}>
+                  Name the city and its country and you become its first hostel. It goes into the
+                  pipeline as <em>opening</em>; nothing is public until enough hostels nearby are
+                  posting, so there is no empty page with your name on it.
+                </p>
+                <div className="twocol">
+                  <div className="field">
+                    <label htmlFor="cityName">City</label>
+                    <input id="cityName" name="cityName" placeholder="Faro" maxLength={60} />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="cityCountry">Country</label>
+                    <input id="cityCountry" name="cityCountry" placeholder="Portugal" maxLength={60} />
+                  </div>
+                </div>
+                <div className="field">
+                  <label htmlFor="cityTz">Timezone</label>
+                  <select id="cityTz" name="cityTz" defaultValue="Europe/Lisbon">
+                    {["Europe/Lisbon", "Europe/Madrid", "Europe/Paris", "Europe/London", "Europe/Berlin",
+                      "Europe/Rome", "Europe/Amsterdam", "Europe/Warsaw", "Europe/Prague", "Europe/Budapest",
+                      "Europe/Athens", "Europe/Zagreb", "Europe/Istanbul", "Africa/Casablanca", "UTC"].map((tz) => (
+                        <option key={tz} value={tz}>
+                          {tz}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </fieldset>
 
               <div className="twocol">
                 <div className="field">

@@ -56,7 +56,11 @@ Then show `/c/lisbon` on a phone. Do not demo the admin. The demo is the guest's
 
 **Self-serve, not sales-led**
 
-`/partner` is the application: hostel and staff account in one step, signed in immediately, status visible while it waits. Applicants land in the city console, where approving flips them live and gives them a bookable dorm. Two things this deliberately does *not* do: it doesn't create a new city (that's the runbook in §3), and it can't be done from a traveller account — one account, one role.
+`/partner` is the application: hostel and staff account in one step, signed in immediately, status visible while it waits. Applicants land in the city console, where approving flips them live and gives them a bookable dorm. It cannot be done from a traveller account — one account, one role.
+
+If the applicant's city is not on our list, they type it (name, country, timezone) and the city is created as `opening` in the same click — `createOpeningCity()` in `lib/queries.ts`, deliberately looser than `createCity()`: an application only needs somewhere to land, not a launch-ready record. The pipeline then shows a city we had not listed, with one partner already inside it. Nothing public renders an `opening` city, so there is never an empty page with a hostel's name on it.
+
+**The page that carries this argument is now `/hostels`** — what the front desk gets, a day in the life, what it costs, three ways to start. It is the link from the traveller landing page ("I run a hostel") and the rail. Point a sceptical owner at it instead of at a deck.
 
 **The knock**
 
