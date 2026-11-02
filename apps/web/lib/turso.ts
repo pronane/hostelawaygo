@@ -100,24 +100,20 @@ export class TursoDb implements Db {
   async batch(statements: { sql: string; params?: Param | Param[] }[]): Promise<void> {
     if (statements.length === 0) return;
 
+    const batch = statements.map(({ sql, params }) => ({
+      sql,
+      args: (params === undefined ? [] : Array.isArray(params) ? params : [params]) as never,
+    }));
+
     // Inside a transaction the statements belong to that stream; a separate
     // batch call would open its own and wait on the lock the transaction holds.
     const tx = this.inside.getStore();
     if (tx) {
-      for (const { sql, params } of statements) {
-        const args = params === undefined ? [] : Array.isArray(params) ? params : [params];
-        await tx.execute({ sql, args: args as never } as never);
-      }
+      await tx.batch(batch as never);
       return;
     }
 
-    await this.client.batch(
-      statements.map(({ sql, params }) => ({
-        sql,
-        args: (params === undefined ? [] : Array.isArray(params) ? params : [params]) as never,
-      })) as never,
-      "write"
-    );
+    await this.client.batch(batch as never, "write");
   }
 
   close(): void {
