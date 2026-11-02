@@ -148,9 +148,12 @@ Two ways to run on Vercel, and only one of them keeps data.
 
 ### With Turso (do this if you want accounts and bookings)
 
-1. **Project → Settings → General → Root Directory: `apps/web`.** Node comes from
-   `apps/web/.node-version` (22.22.3); `node:sqlite` and the Turso client both
-   need 22.5+.
+1. **Project → Settings → General → Root Directory: `apps/web`.**
+   **Settings → Functions → Region:** pick the region next to the Turso database
+   (Dublin `dub1` for `aws-eu-west-1`). **Settings → General → Node.js Version:**
+   Vercel uses its own setting, not `.node-version` — anything 22.5+ runs this
+   (`node:sqlite` is the floor), and 22.x matches the Render/Docker pin.
+   `/api/health` reports the node version it actually ran.
 2. Create the database in [Turso](#turso) and add `TURSO_DATABASE_URL` +
    `TURSO_AUTH_TOKEN` to the Vercel project's environment variables.
 3. Add `APP_URL` = your Vercel URL, and — for a demo — `DEMO_LOGIN=1` and
