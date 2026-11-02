@@ -16,6 +16,21 @@ import { TursoDb } from "./turso";
  * migration runs once per process rather than once per caller.
  */
 
+/** The tables this app owns — read out of the schema so the list cannot drift. */
+const OUR_TABLES = [...SCHEMA.matchAll(/CREATE TABLE IF NOT EXISTS (\w+)/g)].map((match) => match[1]);
+
+/** Tables in the database that this app has never created. */
+async function foreignTables(db: Db): Promise<string[]> {
+  try {
+    const rows = await db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
+      .all<{ name: string }>();
+    return rows.map((row) => row.name).filter((name) => !OUR_TABLES.includes(name));
+  } catch {
+    return [];
+  }
+}
+
 async function open(): Promise<Db> {
   const db: Db =
     storage.kind === "turso" ? new TursoDb(storage.path, storage.token) : new LocalDb(storage.path);
@@ -32,6 +47,20 @@ async function open(): Promise<Db> {
   )?.value;
 
   if (version !== SCHEMA_VERSION) {
+    // Before dropping anything: are we even in the database we think we are?
+    // Pointing TURSO_DATABASE_URL at another app's database is an easy mistake
+    // and a silent one — this app would happily add its tables next to theirs.
+    const strangers = await foreignTables(db);
+    if (strangers.length > 0) {
+      console.warn(
+        `[db] this database already has tables this app did not create: ${strangers
+          .slice(0, 6)
+          .join(", ")}${strangers.length > 6 ? ", …" : ""}. ` +
+          `Check TURSO_DATABASE_URL — you may be pointing at another app's database. ` +
+          `Away's own tables are created alongside; nothing of theirs is dropped.`
+      );
+    }
+
     // Demo data, not production migrations: rebuild rather than carry old shapes.
     // seed() writes the version row last, so a seed that dies halfway is rebuilt
     // on the next start instead of being mistaken for a finished one.
