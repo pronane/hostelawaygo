@@ -1,18 +1,20 @@
 #!/usr/bin/env node
 /**
- * Send the arrivals digest from the command line (e.g. from cron, Mondays 09:00).
+ * Send the digest from the command line (e.g. from cron, Mondays 09:00).
  *   npm run digest
+ *   npm run digest -- --hostels     # last week, to the hostels, instead of travellers
  *   AWAY_BASE_URL=https://away.example DIGEST_TOKEN=... npm run digest
  *   DRY_RUN=1 npm run digest        # builds and reports, sends nothing
  */
 const base = process.env.AWAY_BASE_URL ?? "http://127.0.0.1:3000";
 const token = process.env.DIGEST_TOKEN ?? "dev-digest";
 const dryRun = process.env.DRY_RUN === "1";
+const hostels = process.argv.includes("--hostels") || process.env.HOSTELS === "1";
 
 const res = await fetch(`${base}/api/digest`, {
   method: "POST",
   headers: { "x-digest-token": token, "content-type": "application/json" },
-  body: JSON.stringify({ dryRun }),
+  body: JSON.stringify(hostels ? { dryRun, hostels: true } : { dryRun }),
 });
 
 const body = await res.json().catch(() => ({}));
@@ -30,9 +32,13 @@ if (!res.ok) {
 }
 
 for (const row of body.results ?? []) {
-  console.log(`  ${row.status.padEnd(12)} ${row.traveller} <${row.email}> · ${row.city} · ${row.window} — ${row.note}`);
+  if (hostels) {
+    console.log(`  ${row.status.padEnd(12)} ${row.hostel} <${row.email}> · ${row.week} — ${row.note || row.subject}`);
+  } else {
+    console.log(`  ${row.status.padEnd(12)} ${row.traveller} <${row.email}> · ${row.city} · ${row.window} — ${row.note}`);
+  }
 }
 
 console.log(
-  `\nDigest ${dryRun ? "(dry run) " : ""}— considered ${body.considered}, sent ${body.sent}`
+  `\n${hostels ? "Hostel week" : "Digest"} ${dryRun ? "(dry run) " : ""}— considered ${body.considered}, sent ${body.sent}`
 );

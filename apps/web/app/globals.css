@@ -700,3 +700,109 @@ input, select, textarea { font-family: inherit; }
   font-weight: 750;
   color: var(--coral);
 }
+
+/* ============================================================
+   v9 — the reception screen
+   /hostel/[slug]/board: a TV or a cheap tablet behind a desk,
+   read from two metres away, refreshed every minute.
+   ============================================================ */
+html:has(.board), body:has(.board) { background: #0d0b0a; }
+/* A screen behind a desk is not a page in an app: strip the rail, the aside and
+   the mobile tabs, and let the board have the whole window. `:has()` keeps the
+   route a normal page instead of a second root layout. */
+body:has(.board) .rail,
+body:has(.board) .aside,
+body:has(.board) .mobile-tabs { display: none; }
+body:has(.board) .shell { display: block; max-width: none; padding: 0; margin: 0; gap: 0; }
+body:has(.board) main { padding: 0; max-width: none; margin: 0; min-width: 0; }
+.board {
+  min-height: 100vh;
+  margin: -24px;
+  padding: 40px 46px 32px;
+  background: radial-gradient(circle at 82% 12%, #3a2118 0%, #141110 46%, #0d0b0a 100%);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+.board-clock {
+  position: absolute;
+  top: 26px;
+  right: 40px;
+  font-size: 15px;
+  letter-spacing: .18em;
+  color: #b6a79c;
+}
+.board-clock b { font-weight: 700; }
+.board-head { display: grid; gap: 8px; }
+.board-hostel {
+  font-size: 44px;
+  line-height: 1;
+  letter-spacing: -.045em;
+  font-weight: 800;
+}
+.board-kicker {
+  font-size: 12px;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: #c98a70;
+  font-weight: 800;
+}
+.board-body { display: flex; gap: 40px; align-items: flex-start; flex: 1; }
+.board-list { flex: 1; min-width: 0; display: grid; gap: 6px; }
+.board-label {
+  font-size: 10.5px;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: #8d7d72;
+  font-weight: 800;
+  margin: 18px 0 6px;
+}
+.board-row {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  padding: 14px 18px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .045);
+  border: 1px solid rgba(255, 255, 255, .07);
+}
+.board-row.mine {
+  background: rgba(255, 90, 54, .14);
+  border-color: rgba(255, 90, 54, .35);
+}
+.board-time { font-size: 22px; font-weight: 800; letter-spacing: -.02em; flex: 0 0 auto; }
+.board-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 20px;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.board-going, .board-meta { font-size: 13px; color: #cbb9ad; flex: 0 0 auto; }
+.board-empty { font-size: 22px; line-height: 1.5; color: #cbb9ad; padding: 20px 4px; }
+.board-qr { flex: 0 0 240px; display: grid; gap: 10px; justify-items: center; }
+.board-qr-code { width: 240px; height: 240px; border-radius: 20px; overflow: hidden; background: #fff; }
+.board-qr-code svg { width: 100%; height: 100%; display: block; }
+.board-qr-copy { font-size: 14px; font-weight: 800; letter-spacing: .04em; }
+.board-qr-url { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: #8d7d72; }
+.board-foot {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 13px;
+  color: #8d7d72;
+  border-top: 1px solid rgba(255, 255, 255, .09);
+  padding-top: 16px;
+}
+.board-link { color: #ff8a68; font-weight: 700; }
+
+@media (max-width: 760px) {
+  .board-body { flex-direction: column; }
+  .board-qr { flex: 0 0 auto; }
+  .board-qr-code { width: 180px; height: 180px; }
+  .board-hostel { font-size: 32px; }
+  .board-title { font-size: 17px; }
+}

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LAUNCH_BAR } from "@/lib/cities";
 import { getCities, getHostels, getLiveCities } from "@/lib/queries";
 import { formatPrice, plural } from "@/lib/format";
 
@@ -86,9 +87,16 @@ export default async function ExplorePage() {
             <span>not open until there are enough nights to fill an evening</span>
           </div>
           <p style={{ fontSize: 12.5, color: "#7b6e64", lineHeight: 1.7, margin: "0 2px" }}>
-            {opening.map((c) => c.name).join(", ")} — we switch a city on when{" "}
-            {opening.length === 1 ? "it has" : "it has"} three hostels posting and a fortnight of
-            things to do. A city guide that opens half-empty is a city guide nobody opens twice.
+            {opening.map((c, i) => (
+              <span key={c.slug}>
+                {i > 0 ? ", " : ""}
+                <Link href={`/c/${c.slug}`} style={{ textDecoration: "underline", color: "#4a403a" }}>
+                  {c.name}
+                </Link>
+              </span>
+            ))}{" "}
+            — we switch a city on when it has {LAUNCH_BAR.partners} hostels posting and a fortnight
+            of things to do. A city guide that opens half-empty is a city guide nobody opens twice.
           </p>
         </section>
       ) : null}

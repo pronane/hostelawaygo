@@ -40,9 +40,15 @@ function Notice({ tone, children }: { tone: "ok" | "warn"; children: React.React
 export default async function PartnerPage({
   searchParams,
 }: {
-  searchParams: Promise<{ submitted?: string; pending?: string; error?: string; newCity?: string }>;
+  searchParams: Promise<{
+    submitted?: string;
+    pending?: string;
+    error?: string;
+    newCity?: string;
+    city?: string;
+  }>;
 }) {
-  const { submitted, pending, error, newCity } = await searchParams;
+  const { submitted, pending, error, newCity, city } = await searchParams;
   const user = await getCurrentUser();
   const cities = await getCities();
   const myHostel = user?.hostel_id
@@ -206,7 +212,12 @@ export default async function PartnerPage({
                 </div>
                 <div className="field">
                   <label htmlFor="city">City</label>
-                  <select id="city" name="city" required defaultValue="lisbon">
+                  <select
+                    id="city"
+                    name="city"
+                    required
+                    defaultValue={cities.some((c) => c.slug === city) ? city : "lisbon"}
+                  >
                     {cities.map((city) => (
                       <option key={city.slug} value={city.slug}>
                         {city.name}

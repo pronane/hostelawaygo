@@ -67,7 +67,17 @@ export default async function PartnerKitPage({ params }: Props) {
           <Link href={`/hostel/${hostel.slug}`} className="btn">
             Guest view of your page
           </Link>
+          <Link href={`/hostel/${hostel.slug}/board`} className="btn">
+            Reception screen
+          </Link>
         </div>
+        <p style={{ fontSize: 12, color: "#8b7d72", marginTop: 10, lineHeight: 1.6 }}>
+          The <Link href={`/hostel/${hostel.slug}/board`} style={{ textDecoration: "underline" }}>
+            reception screen
+          </Link>{" "}
+          is the same information as the poster, live — open it on the tablet or TV behind the desk
+          and leave it there. It refreshes itself every minute.
+        </p>
       </header>
 
       <div className="stat-row no-print">

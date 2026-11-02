@@ -93,12 +93,13 @@ Everything else — state, PKCE, nonce, JWKS lookup, signature check, linking �
 | `/hostels` | For hostels: what the front desk gets, a day with Away, what it costs, and three ways to start. The supply-side landing page |
 | `/next` | NEXT — the next city's events filtered to your trip window; out-of-window cards are greyed, not hidden |
 | `/explore` | Every **live** city, with its hostels and what's on; cities still in `opening` are named at the bottom as "opening next" |
-| `/c/[slug]` | Public city page — "What's on in Lisbon this week", grouped by day, with JSON-LD and a canonical URL. 404s unless the city is live |
+| `/c/[slug]` | Public city page — "What's on in Lisbon this week", grouped by day, with JSON-LD and a canonical URL. A city that is `opening` gets its own version instead: how far it has got against the launch bar, what is already happening, and one button for the hostel that would tip it over |
 | `/stay/[slug]` | What a reception QR points at: records an anonymous arrival, remembers the hostel, drops you on that city's feed |
 | `/sitemap.xml`, `/robots.txt` | Live cities and public events in, sessions/bookings/admin/share-my-night out |
 | `/event/[id]` | Event detail: traveller lens, who's going, join, share, **persisted chat** with report links |
 | `/hostel/[slug]` | Hostel page, per-night availability for a date range, booking form |
 | `/hostel/[slug]/kit` | Partner kit (staff/admin): printable poster + dorm sticker with the hostel's QR, check-in lines, the attribution funnel |
+| `/hostel/[slug]/board` | The reception screen: tonight, the hostel's own nights first, the city's by walk time, and the QR. Full-bleed, dark, no chrome, refreshes itself every minute — open it on the tablet behind the desk and leave it. Public and `noindex` |
 | `/partner` | Self-serve hostel application: hostel + staff account in one step, status while it waits, one-click demo login for the pending applicant. A city we don't have yet can be typed in — it is created as `opening` and the applicant becomes its first hostel |
 | `/booking/[code]` | Receipt, sandbox payment, cancellation |
 | `/trips` | Your bookings, grouped by city |
@@ -113,12 +114,12 @@ Everything else — state, PKCE, nonce, JWKS lookup, signature check, linking �
 | `/hostel-admin` | Portal: attribution funnel, upcoming events, arrivals/bookings, reported chat, cancel event (staff only) |
 | `/admin/cities` | Ops: the city pipeline — readiness per city, and "open a city" (admin only) |
 | `/admin/cities/[slug]` | One city's launch bar, the five-week runbook, its partners, the application queue (approve/decline), and the go-live switch (admin only) |
-| `/admin/digest` | Arrivals digest: who's due, a real preview of the email, send, and the per-trip log (admin only) |
+| `/admin/digest` | Two emails: the arrivals digest (who's due, a real preview, send, per-trip log) and the hostel week (what each hostel posted, joins, QR scans → joins → beds, one per hostel per ISO week) |
 | `/admin/ingest` | Ops console: run the Ticketmaster import, read the run log (admin only) |
 | `POST /api/join` | Toggle a join for the signed-in traveller → `{ joined, going }`, `401` when anonymous |
 | `POST /api/events` | Create a hostel event — `401` anonymous, `403` non-staff, hostel taken from the session |
 | `POST /api/ingest` | Runs the import. Requires `x-ingest-token` or an admin session |
-| `POST /api/digest` | Sends the arrivals digest (`{ dryRun }`). Requires `x-digest-token` or an admin session |
+| `POST /api/digest` | Sends the arrivals digest (`{ dryRun }`), or the hostel week (`{ hostels: true }`). Requires `x-digest-token` or an admin session |
 | `GET /api/events/[id]/stream` | SSE feed of new chat messages (`Last-Event-ID` aware) |
 | `POST /api/payments/webhook` | Signed provider callbacks: `payment.paid`, `payment.refunded`, `checkout.session.completed` |
 | `GET /api/health` | Liveness for a deploy platform: `{ ok, schema, cities, events, payments, demo }`, `503` if the schema doesn't match the build |

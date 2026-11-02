@@ -110,8 +110,11 @@ export default async function ForHostelsPage() {
         <div className="run-step">
           <span className="run-when">19:30</span>
           <span className="run-what">
-            <b>Point at the poster</b>
-            <span>&ldquo;Quiz&apos;s at nine, scan that.&rdquo; Every scan is counted.</span>
+            <b>Point at the poster, or the screen</b>
+            <span>
+              &ldquo;Quiz&apos;s at nine, scan that.&rdquo; The poster prints; the reception screen is
+              the same thing, live, on the tablet behind the desk.
+            </span>
           </span>
         </div>
         <div className="run-step">
