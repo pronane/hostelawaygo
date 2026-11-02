@@ -104,14 +104,14 @@ export async function seed(db: Db): Promise<void> {
     hostelIdByName.set("Casa do Sol", pending.lastInsertRowid);
 
     /* rooms */
-    const insRoom = db.prepare(
-      "INSERT INTO rooms (hostel_id, name, kind, beds, price_cents) VALUES (?, ?, ?, ?, ?)"
-    );
     for (const h of HOSTELS) {
       const hostelId = hostelIdBySlug.get(h.slug)!;
-      for (const room of ROOM_TEMPLATES(h.priceFrom)) {
-        await insRoom.run(hostelId, room.name, room.kind, room.beds, room.price_cents);
-      }
+      await db.batch(
+        ROOM_TEMPLATES(h.priceFrom).map((room) => ({
+          sql: "INSERT INTO rooms (hostel_id, name, kind, beds, price_cents) VALUES (?, ?, ?, ?, ?)",
+          params: [hostelId, room.name, room.kind, room.beds, room.price_cents],
+        }))
+      );
     }
 
     /* travellers */

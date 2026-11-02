@@ -77,10 +77,15 @@ reached over HTTP instead of through a file. That is the difference between
 platform has no disk to put a database on.
 
 ```bash
-turso db create away                       # or click through the dashboard
+turso db create away --location fra        # or click through the dashboard
 turso db show away --url                   # libsql://away-….turso.io
 turso db tokens create away                # the auth token
 ```
+
+**Put the database in the same region as the server.** Every query is a round
+trip, so a Vercel project in `iad1` talking to a database in Frankfurt adds
+~90ms to each one. Vercel's region is under Project → Settings → Functions;
+Turso's is chosen at `db create` time (`turso db locations` lists them).
 
 Then set two environment variables wherever the app runs and restart:
 
