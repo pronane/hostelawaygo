@@ -92,6 +92,22 @@ The conversation in month two is therefore not "did it work?" but:
 
 Two honest caveats, both of which belong in the meeting: the count is per browser (a guest who clears cookies looks new), and it only counts what happened *in the app* — the beer they bought at your bar is not in the number. Under-claim, don't over-claim; a hostel that catches you inflating a metric stops posting.
 
+### The weekly receipt (the retention loop, in code)
+
+Signing a hostel is not the number that matters; **posting hostels** is. A hostel that posted three nights in March and stopped in April is a dead listing, and in a twelve-hostel city that is 8% of the feed.
+
+So each hostel gets one email a week, and it is a receipt rather than a newsletter (`lib/hostel-week.ts`, sent from `/admin/digest` or `npm run digest -- --hostels`):
+
+> Home Lisbon Hostel: 1 night, 18 people said they'd come
+>
+> What you put on, and how many said they were coming:
+>   Mon 2 Nov 19:30 — Family dinner: Mozambican curry · 18 going
+>
+> The poster at your door, last seven days:
+>   28 scans → 8 joined → 1 bed booked
+
+Two rules keep it from becoming noise: it only goes to a hostel that **did something** (posted a night, or had somebody scan its QR), and one email per hostel per ISO week — enforced by the same `digest_sends` table the traveller digest uses. A hostel that posts three nights and gets a receipt is a hostel that posts a fourth.
+
 ### The activation checklist (first 7 days)
 
 A signed hostel that never posts is a logo. The console counts them as *signed but not posting*, and the weekly review chases exactly those.

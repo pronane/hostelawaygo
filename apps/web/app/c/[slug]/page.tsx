@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { EventCard } from "@/components/event-card";
 import { ShareButton } from "@/components/share-button";
 import { getCity, getCityEvents, getHostels, groupByDay } from "@/lib/queries";
+import type { City } from "@/lib/types";
+import { LAUNCH_BAR } from "@/lib/cities";
 import { addDays, formatDay, todayISO } from "@/lib/time";
 import { plural } from "@/lib/format";
 
@@ -20,7 +22,17 @@ type Props = { params: Promise<{ slug: string }> };
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
   const city = await getCity(slug);
-  if (!city || city.status !== "live") return { title: "City not found" };
+  if (!city) return { title: "City not found" };
+  if (city.status === "opening") {
+    const title = `${city.name} — opening soon`;
+    return {
+      title,
+      description: `${city.name} is not open yet. Away switches a city on when ${LAUNCH_BAR.partners} hostels are posting and there is a week of things to do — this page says how far it has got.`,
+      alternates: { canonical: `/c/${city.slug}` },
+      openGraph: { title, type: "website", url: `/c/${city.slug}` },
+    };
+  }
+  if (city.status !== "live") return { title: "City not found" };
 
   const today = todayISO();
   const events = await getCityEvents(city.slug, today, addDays(today, 7), null);
@@ -38,7 +50,8 @@ export async function generateMetadata({ params }: Props) {
 export default async function PublicCityPage({ params }: Props) {
   const { slug } = await params;
   const city = await getCity(slug);
-  if (!city || city.status !== "live") notFound();
+  if (!city || city.status === "planned") notFound();
+  if (city.status === "opening") return <OpeningCity city={city} />;
 
   const today = todayISO();
   const events = await getCityEvents(city.slug, today, addDays(today, 7), null);
@@ -163,6 +176,97 @@ export default async function PublicCityPage({ params }: Props) {
         This page updates itself from hostel listings and the city&apos;s ticketed calendar. Staying
         in a hostel in {city.name}? Scan the code at reception and this becomes your feed, matched
         to your dates.
+      </p>
+    </article>
+  );
+}
+
+/**
+ * A city that is not live yet, but now exists because a hostel asked for it.
+ *
+ * It used to 404. That was the wrong answer twice over: a stranger who found the
+ * link from `/explore` learned nothing, and a hostel that had just applied found
+ * nothing to send its neighbours. This page says what the city still needs, in
+ * the same numbers the pipeline uses, and puts the one action that changes it in
+ * front of the person who can take it.
+ */
+async function OpeningCity({ city }: { city: City }) {
+  const today = todayISO();
+  const events = await getCityEvents(city.slug, today, addDays(today, 7), null);
+  const inCity = await getHostels(city.slug);
+  const partners = inCity.filter((h) => h.status === "active").length;
+  const pending = inCity.filter((h) => h.status === "pending").length;
+
+  return (
+    <article>
+      <header className="page-head">
+        <div className="eyebrow">
+          {city.emoji} {city.country} · opening
+        </div>
+        <h1 className="page-title">{city.name} is opening</h1>
+        <p className="page-sub">
+          Not switched on yet. A city guide that opens half-empty is one nobody opens twice, so a
+          city goes live when {LAUNCH_BAR.partners} hostels are posting and there is a week of
+          things to do. Here is exactly how far {city.name} has got.
+        </p>
+        <div className="cta-row">
+          <Link href={`/partner?city=${city.slug}`} className="btn primary">
+            I run a hostel in {city.name}
+          </Link>
+          <Link href="/explore" className="btn">
+            See where we&apos;re live
+          </Link>
+        </div>
+      </header>
+
+      <div className="stat-row">
+        <div className="stat">
+          <b>
+            {partners}/{LAUNCH_BAR.partners}
+          </b>
+          <span>PARTNER HOSTELS</span>
+        </div>
+        <div className="stat">
+          <b>
+            {events.length}/{LAUNCH_BAR.events}
+          </b>
+          <span>THINGS ON THIS WEEK</span>
+        </div>
+      </div>
+
+      {pending > 0 ? (
+        <p style={{ fontSize: 12.5, color: "#7b6e64", marginTop: 12, lineHeight: 1.6 }}>
+          {plural(pending, "hostel")} already applied and {pending === 1 ? "is" : "are"} in review —
+          the count above is approved partners, which is what the bar is about.
+        </p>
+      ) : null}
+
+      {events.length > 0 ? (
+        <section style={{ marginTop: 26 }}>
+          <div className="day">
+            <h2>Already happening</h2>
+            <span>imported from the city, not from us</span>
+          </div>
+          {events.slice(0, 6).map((event) => (
+            <EventCard key={event.id} event={event} />
+          ))}
+        </section>
+      ) : (
+        <div className="empty" style={{ marginTop: 22 }}>
+          Nothing listed for {city.name} yet.
+          <br />
+          The first hostel to post fills this page —{" "}
+          <Link href={`/partner?city=${city.slug}`} style={{ color: "#ff5a36", fontWeight: 700 }}>
+            apply in two minutes
+          </Link>
+          .
+        </div>
+      )}
+
+      <p style={{ fontSize: 12.5, color: "#7b6e64", lineHeight: 1.7, marginTop: 26 }}>
+        Guests already in {city.name} can use Away from the moment the first hostel is on the
+        map — <Link href="/" style={{ textDecoration: "underline" }}>the feed</Link> follows
+        whichever city you are in.
       </p>
     </article>
   );

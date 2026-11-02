@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { sendDigestAction } from "@/app/actions/digest";
+import { sendDigestAction, sendHostelWeekAction } from "@/app/actions/digest";
 import { requireAdmin } from "@/lib/auth";
 import { digestAlreadySent, digestAudience, recentDigestSends, runDigest } from "@/lib/digest";
+import { composeHostelWeek, runHostelWeek } from "@/lib/hostel-week";
+import { appUrl } from "@/lib/constants";
 import { mailEnabled } from "@/lib/mail";
 import { formatDay, formatSqlTime } from "@/lib/time";
 import { plural } from "@/lib/format";
@@ -20,10 +22,16 @@ const STATUS_TONE: Record<string, string> = {
 export default async function DigestPage({
   searchParams,
 }: {
-  searchParams: Promise<{ preview?: string; sent?: string; considered?: string }>;
+  searchParams: Promise<{
+    preview?: string;
+    sent?: string;
+    considered?: string;
+    hostelSent?: string;
+    hostelConsidered?: string;
+  }>;
 }) {
   await requireAdmin("/admin/digest");
-  const { preview, sent, considered } = await searchParams;
+  const { preview, sent, considered, hostelSent, hostelConsidered } = await searchParams;
 
   const audience = await digestAudience();
   const sends = await recentDigestSends(12);
@@ -31,6 +39,8 @@ export default async function DigestPage({
   const previewRun = preview ? await runDigest({ dryRun: true }) : null;
   const sample = previewRun?.results.find((r) => r.digest)?.digest ?? null;
   const withContent = previewRun?.results.filter((r) => r.status === "preview").length ?? 0;
+  const hostelRun = await runHostelWeek({ dryRun: true });
+  const reportable = hostelRun.results.filter((r) => r.status === "preview");
 
   return (
     <>
@@ -213,6 +223,69 @@ export default async function DigestPage({
           <code>DIGEST_TOKEN=… npm run digest</code> posts to <code>/api/digest</code>. Re-running is
           safe — the unique key is the trip, not the run.
         </p>
+
+      <section style={{ marginTop: 34 }}>
+        <div className="day">
+          <h2>The hostel week</h2>
+          <span>the retention loop — last week, in numbers</span>
+        </div>
+
+        {hostelSent ? (
+          <div className="notice" role="status">
+            <span aria-hidden="true">✓</span>
+            <span>
+              Sent to {hostelSent} of {hostelConsidered} live hostels who had something to report.
+            </span>
+          </div>
+        ) : null}
+
+        <p style={{ fontSize: 13, lineHeight: 1.6, margin: "0 0 14px" }}>
+          One email a week to a hostel that posted a night, or had somebody scan its poster: what it
+          put on, how many said they were coming, and what the QR did. Hostels with a silent week get
+          nothing — the point is a receipt, not a newsletter.
+        </p>
+
+        {reportable.length === 0 ? (
+          <p style={{ fontSize: 12.5, color: "#8b7d72" }}>
+            Nothing to report this week. {hostelRun.considered} live hostels considered.
+          </p>
+        ) : (
+          <div className="admin-list">
+            {reportable.slice(0, 4).map((row) => {
+              const preview = composeHostelWeek(row.week, appUrl());
+              return (
+                <div key={row.week.hostelId} className="mail-preview" style={{ marginBottom: 10 }}>
+                  <b>{row.week.name}</b> <span style={{ color: "#8b7d72" }}>· {row.week.email}</span>
+                  <div style={{ fontWeight: 750, margin: "8px 0" }}>{preview.subject}</div>
+                  <pre className="mail-text" style={{ whiteSpace: "pre-wrap", margin: 0 }}>
+                    {preview.text}
+                  </pre>
+                </div>
+              );
+            })}
+            {reportable.length > 4 ? (
+              <p style={{ fontSize: 11.5, color: "#8b7d72" }}>
+                …and {reportable.length - 4} more.
+              </p>
+            ) : null}
+          </div>
+        )}
+
+        <form action={sendHostelWeekAction} style={{ marginTop: 14 }}>
+          <button type="submit" className="btn primary" disabled={!enabled || reportable.length === 0}>
+            Send {reportable.length === 0 ? "nothing" : `${reportable.length} hostel ${reportable.length === 1 ? "week" : "weeks"}`}
+          </button>
+          {enabled ? null : (
+            <span style={{ marginLeft: 12, fontSize: 11.5, color: "#8b7d72" }}>
+              RESEND_API_KEY is not set — the button only records previews.
+            </span>
+          )}
+        </form>
+        <p style={{ fontSize: 11.5, color: "#8b7d72", marginTop: 12, lineHeight: 1.6 }}>
+          From cron: <code>npm run digest -- --hostels</code> posts to <code>/api/digest</code> with{" "}
+          <code>{'{ "hostels": true }'}</code>. One per hostel per ISO week.
+        </p>
+      </section>
       </section>
     </>
   );
