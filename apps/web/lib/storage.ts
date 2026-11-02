@@ -91,6 +91,15 @@ function tursoStorage(): Storage | null {
     );
   }
 
+  // Which database, said out loud once. Deployments go wrong by pointing at the
+  // right URL with the wrong database name in it, and this is the line that
+  // tells you. Host only — the token never reaches a log.
+  try {
+    warnOnce(`[db] turso: ${new URL(url).host}`);
+  } catch {
+    warnOnce(`[db] turso: ${url}`);
+  }
+
   return { kind: "turso", path: url, token, ephemeral: false, reason: "Turso (libSQL)" };
 }
 

@@ -122,7 +122,14 @@ Rules and consequences:
   in Turso, and statements issued inside it are routed there per request
   (`AsyncLocalStorage`), so a booking and its payment still commit together.
 - **`node scripts/verify-deploy.mjs https://your-app`** now also reports which
-  driver answered.
+  driver answered, and the boot log names the database host:
+  `[db] turso: hostelawaygo-….turso.io`.
+- **Pointing at the wrong database is loud.** If the database already contains
+  tables this app did not create, the first boot says so and names them —
+  `[db] this database already has tables this app did not create: courses,
+  rounds. Check TURSO_DATABASE_URL`. Away creates its own tables alongside and
+  drops nothing of theirs, so the fix is to change the URL, not to clean up an
+  accident.
 
 ### Without an account
 
@@ -274,6 +281,7 @@ migration story (or Postgres) is a separate piece of work.
 | First request after a quiet period is slow | free instances sleep; upgrade to Starter |
 | `ENOENT: mkdir …/data` at request time | the deployment directory is read-only — that is Vercel. The app falls back to `/tmp`; if you set `AWAY_DB_PATH` yourself, unset it or point it at a real disk |
 | `/api/health` says `database: "sqlite"` on Vercel | `TURSO_DATABASE_URL` is missing from the project's environment variables, or was added after the deployment — redeploy, env changes are not always picked up by preview builds |
+| Health is green but the **other** Turso database is the one growing | `TURSO_DATABASE_URL` names someone else's database (the host in the boot log and in the URL is the check). Create a database for this app, use its URL **and** a token minted for it, then redeploy |
 | `TURSO_DATABASE_URL is "…"` at boot | it is not a `libsql://` or `https://` URL — copy it from `turso db show --url`, not the CLI's local file |
 | Turso rejects the connection (`401`) | `TURSO_AUTH_TOKEN` is missing or was rotated: `turso db tokens create <db>` makes a new one |
 | First request after pointing at Turso is slow | it is seeding the database over the network — a few seconds, once. If it dies half-way the next request rebuilds |
