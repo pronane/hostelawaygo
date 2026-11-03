@@ -4,7 +4,9 @@ import { JoinButton } from "@/components/join-button";
 import { ShareButton } from "@/components/share-button";
 import { ChatLive } from "@/components/chat-live";
 import { getCurrentUser } from "@/lib/auth";
-import { getCity, getEvent, getMessages, getWhoIsGoing } from "@/lib/queries";
+import { getArrivalCohort, getCity, getEvent, getMessages, getWhoIsGoing } from "@/lib/queries";
+import { getGroupsForEvent } from "@/lib/groups";
+import { createGroupAction } from "@/app/actions/groups";
 import { formatPriceRange, plural, walkLabel } from "@/lib/format";
 import { endTime, formatDay, formatSqlTime, timeOf } from "@/lib/time";
 
@@ -50,6 +52,8 @@ export default async function EventPage({ params, searchParams }: Props) {
   if (!event) notFound();
 
   const who = await getWhoIsGoing(event.id);
+  const groups = await getGroupsForEvent(event.id);
+  const groupPeople = groups.reduce((total, group) => total + group.people, 0);
   const messages = await getMessages(event.id, user?.id ?? null);
   // Cities are rows now, not a constant: a city opened in the console has to
   // work here without a deploy.
@@ -61,7 +65,21 @@ export default async function EventPage({ params, searchParams }: Props) {
       ? `${event.soloGoing} of ${event.going} going arrived alone`
       : "Nobody has joined yet — be the first";
 
-  const lens = [soloLine, ...event.lens];
+  // "19 going" is a number. "4 of them are staying in Lisbon that night" is a
+  // reason to go, and it comes free from the bookings already on file.
+  const cohort = await getArrivalCohort(event.id, event.city, event.starts_at.slice(0, 10));
+  const hereLine =
+    cohort.here > 0
+      ? `${cohort.here} of the ${event.going} ${cohort.here === 1 ? "is" : "are"} staying in ${cityName} that night`
+      : null;
+  const arrivingLine =
+    cohort.arriving > 0
+      ? `${cohort.arriving} more ${cohort.arriving === 1 ? "arrives" : "arrive"} within the week`
+      : null;
+
+  const lens = [soloLine, hereLine, arrivingLine, ...event.lens].filter(
+    (line): line is string => Boolean(line)
+  );
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
     `${venueName}, ${cityName}`
   )}`;
@@ -232,6 +250,66 @@ export default async function EventPage({ params, searchParams }: Props) {
             + {who.length - 12} more going
           </p>
         ) : null}
+      </section>
+
+      {/* ------------------------------------------------------- group nights */}
+      <section className="whos" style={{ marginTop: 18 }}>
+        <div className="panel-head">
+          {groups.length > 0
+            ? `Coming together · ${plural(groupPeople, "person", "people")} in ${plural(groups.length, "group")}`
+            : "Coming with people?"}
+        </div>
+
+        {groups.length > 0 ? (
+          <div className="admin-list" style={{ marginTop: 10 }}>
+            {groups.map((group) => (
+              <Link key={group.id} href={`/g/${group.token}`} className="admin-row" style={{ textDecoration: "none" }}>
+                <div className="admin-main">
+                  <b>{group.plan ?? event.title}</b>
+                  <span>
+                    {plural(group.people, "person", "people")} going
+                    {group.size && group.size > group.people ? ` · ${group.size} expected` : ""}
+                  </span>
+                </div>
+                <div className="admin-actions">
+                  <span className="status ok">open</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : null}
+
+        <form action={createGroupAction} className="form-wrap" style={{ marginTop: 12 }}>
+          <input type="hidden" name="eventId" value={event.id} />
+          <div className="twocol">
+            <div className="field">
+              <label htmlFor="group-size">How many of you?</label>
+              <select id="group-size" name="size" defaultValue="3">
+                {Array.from({ length: 11 }, (_, i) => i + 2).map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="group-plan">Call it something (optional)</label>
+              <input
+                id="group-plan"
+                name="plan"
+                maxLength={60}
+                placeholder={`${event.title} with the dorm`}
+              />
+            </div>
+          </div>
+          <button type="submit" className="btn" style={{ marginTop: 12 }}>
+            Make a group link
+          </button>
+          <p style={{ fontSize: 11.5, color: "#8b7d72", margin: "10px 0 0", lineHeight: 1.6 }}>
+            One link. Your people tap it and add a first name — no account, no download. The hostel
+            sees how many of you are coming, which is how the curry gets made.
+          </p>
+        </form>
       </section>
 
       <p style={{ fontSize: 11.5, color: "#8b7d72", marginTop: 26, lineHeight: 1.6 }}>

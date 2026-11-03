@@ -40,7 +40,7 @@ AWAY_E2E_CHANNEL=msedge npm test     # Microsoft Edge
 | `tests/hostel-and-ops.spec.ts` | a hostel publishes to the feed; ops approves a hostel application, previews the digest, opens the ingest console |
 | `tests/social.spec.ts` | sign in with the provider stand-in, add a password, sign out, sign in with that password |
 | `tests/outreach.spec.ts` | open a city, load hostels, draft a letter, approve it, send it, see the `.eml` |
-| `tests/30-full-journey.spec.ts` | **everything, in order, as one person then one hostel then one ops account**: landing → signup → join a night → the chat asking for a confirmed email → confirm → chat → book a bed → pay → trips → safe-night link a friend can open → apply as a hostel in a city Away has never listed → pending → ops approves → the hostel signs in, posts tonight → the reception screen is locked → start Pro → sandbox checkout → screen unlocked → cancel Pro → the city page counts the partner. Plus a paid booking that is cancelled and refunded. |
+| `tests/30-full-journey.spec.ts` | **everything, in order, as one person then one hostel then one ops account**: landing → signup → join a night → the chat asking for a confirmed email → confirm → chat → **a group link a stranger joins with nothing but a name** → book a bed → pay → the "arriving this week" count → trips → safe-night link a friend can open → apply as a hostel in a city Away has never listed → pending → ops approves → the hostel signs in (and prints its kit in Portuguese and Polish), posts tonight → the reception screen is locked → start Pro → sandbox checkout → screen unlocked (and shows the group coming) → cancel Pro → the city page counts the partner. Plus a paid booking that is cancelled and refunded. |
 
 ### No browser? Same journey, over HTTP
 

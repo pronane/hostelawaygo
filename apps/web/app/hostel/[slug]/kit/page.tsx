@@ -1,15 +1,20 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import QRCode from "qrcode";
 import { PrintButton } from "@/components/print-button";
 import { requireStaff, isStaff } from "@/lib/auth";
 import { appUrl } from "@/lib/constants";
-import { getHostelBySlug, getPartnerStats } from "@/lib/queries";
+import { getCity, getHostelBySlug, getPartnerStats } from "@/lib/queries";
 import { formatPrice, plural } from "@/lib/format";
+import { KIT_LANGUAGES, kitCopy, kitLanguageFrom } from "@/lib/kit-copy";
 
 export const dynamic = "force-dynamic";
 
-type Props = { params: Promise<{ slug: string }> };
+type Props = {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ lang?: string }>;
+};
 
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
@@ -25,8 +30,9 @@ export async function generateMetadata({ params }: Props) {
  * for the dorm door, three lines to say at check-in, and the numbers that prove
  * it worked.
  */
-export default async function PartnerKitPage({ params }: Props) {
+export default async function PartnerKitPage({ params, searchParams }: Props) {
   const { slug } = await params;
+  const { lang } = await searchParams;
   const hostel = await getHostelBySlug(slug);
   if (!hostel) notFound();
 
@@ -36,6 +42,17 @@ export default async function PartnerKitPage({ params }: Props) {
   if (user.role !== "admin" && user.hostel_id !== hostel.id) redirect("/?denied=staff");
   // A QR code for a hostel that isn't on the map yet sends guests nowhere.
   if (hostel.status !== "active" && user.role !== "admin") redirect("/partner?pending=1");
+
+  // A kit is printed once and stays on a wall in a city that may not speak
+  // English: the poster, the sticker and the check-in lines come in the
+  // languages a Lisbon front desk actually hears. The phone's own preference
+  // wins first, and `?lang=pt` pins one for a hostel that asks for it.
+  // A city slug is not a name: "sines" on a poster is a typo with a QR code.
+  const city = await getCity(hostel.city);
+  const cityName = city?.name ?? hostel.city;
+  const detected = kitLanguageFrom((await headers()).get("accept-language"));
+  const chosen = kitCopy(lang ?? detected);
+  const copy = chosen;
 
   const base = appUrl();
   const stayUrl = `${base}/stay/${hostel.slug}`;
@@ -115,6 +132,36 @@ export default async function PartnerKitPage({ params }: Props) {
         </p>
       </section>
 
+      {/* ---------------------------------------------------- the language */}
+      <section className="no-print" style={{ marginTop: 26 }} data-print-skip>
+        <div className="day">
+          <h2>Print it in their language</h2>
+          <span>the poster, the sticker and the three lines</span>
+        </div>
+        <div className="cta-row">
+          {KIT_LANGUAGES.map((code) => {
+            const target = `/hostel/${hostel.slug}/kit?lang=${code}`;
+            const active = chosen.tag === code;
+            return (
+              <Link
+                key={code}
+                href={target}
+                className={active ? "btn primary" : "btn"}
+                aria-current={active ? "true" : undefined}
+                style={{ fontSize: 13 }}
+              >
+                {kitCopy(code).label}
+              </Link>
+            );
+          })}
+        </div>
+        <p style={{ fontSize: 11.5, color: "#8b7d72", marginTop: 10, lineHeight: 1.6 }}>
+          It picked {kitCopy(detected).label} from this browser. The code is the same in every
+          language, so a hostel on a street with four front desks can print all of them and tape up
+          whichever is true that week.
+        </p>
+      </section>
+
       {/* ------------------------------------------------ printable poster */}
       <section style={{ marginTop: 30 }}>
         <div className="day no-print">
@@ -122,30 +169,27 @@ export default async function PartnerKitPage({ params }: Props) {
           <span>A4 · tape it next to the check-in screen</span>
         </div>
 
-        <div className="poster">
+        <div className="poster" lang={chosen.tag}>
           <div className="poster-mark">◉</div>
           <p className="poster-kicker">{hostel.area.toUpperCase()} · {hostel.city.toUpperCase()}</p>
           <h2 className="poster-title">
-            What&apos;s on
+            {chosen.poster.title1}
             <br />
-            tonight?
+            {chosen.poster.title2}
           </h2>
-          <p className="poster-body">
-            Scan to see every hostel night, gig and cheap dinner within walking distance — and
-            what&apos;s on in your next city.
-          </p>
+          <p className="poster-body">{chosen.poster.body}</p>
 
           <div className="poster-qr">
             <div className="qr" dangerouslySetInnerHTML={{ __html: qr }} />
             <div className="poster-qr-copy">
-              <b>Point your camera here</b>
-              <span>No app to install. Works on any phone.</span>
+              <b>{chosen.poster.qrTitle}</b>
+              <span>{chosen.poster.qrBody}</span>
               <span className="poster-url">{stayUrl.replace(/^https?:\/\//, "")}</span>
             </div>
           </div>
 
           <p className="poster-foot">
-            Away · what&apos;s on here, and what&apos;ll be on next · from {hostel.name}
+            {chosen.poster.foot} · {hostel.name}
           </p>
         </div>
       </section>
@@ -157,12 +201,10 @@ export default async function PartnerKitPage({ params }: Props) {
           <span>Cut in half · one per door</span>
         </div>
 
-        <div className="sticker">
+        <div className="sticker" lang={chosen.tag}>
           <div className="sticker-copy">
-            <b>Out tonight?</b>
-            <span>
-              Scan for what&apos;s on in {hostel.city} — including the nights in this building.
-            </span>
+            <b>{chosen.sticker.title}</b>
+            <span>{chosen.sticker.body(cityName)}</span>
           </div>
           <div className="qr small" dangerouslySetInnerHTML={{ __html: qr }} />
         </div>
@@ -178,15 +220,15 @@ export default async function PartnerKitPage({ params }: Props) {
         <div className="admin-list">
           {[
             {
-              line: "“Here's your key — and here's what's on tonight.”",
+              line: chosen.checkIn[0],
               why: "Point at the QR. It is a gift, not a download request: no app, no account to read it.",
             },
             {
-              line: "“Our dinner is on there, and the pub crawl after it.”",
+              line: chosen.checkIn[1],
               why: "Name one thing that is yours. It makes the feed feel like the hostel's, not an advert.",
             },
             {
-              line: "“It also shows your next city, if you tell it where you're going.”",
+              line: chosen.checkIn[2],
               why: "The reason they keep the tab open after they leave you — and why they come back to book.",
             },
           ].map((item, i) => (

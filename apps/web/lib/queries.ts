@@ -488,6 +488,40 @@ export async function getWhoIsGoing(eventId: number): Promise<Traveller[]> {
     .all<Traveller>(eventId);
 }
 
+/**
+ * Who in the room is actually in town.
+ *
+ * "19 going" is a number; "4 of them are staying in Lisbon that night" is a
+ * reason to go. It comes out of the bookings already in the database: a
+ * confirmed bed in this city that covers the night of the event means the
+ * person is here, and a bed starting within the next week means they are about
+ * to be. Nothing new to store, and nothing is shown when the answer is zero —
+ * an empty statistic is worse than no statistic.
+ */
+export async function getArrivalCohort(
+  eventId: number,
+  city: string,
+  day: string
+): Promise<{ here: number; arriving: number }> {
+  const row = await getDb()
+    .prepare(
+      `SELECT
+         COUNT(DISTINCT CASE WHEN b.check_in <= @day AND b.check_out > @day THEN j.traveller_id END) AS here,
+         COUNT(DISTINCT CASE WHEN b.check_in > @day AND b.check_in <= @week THEN j.traveller_id END) AS arriving
+       FROM joins j
+       JOIN bookings b ON b.traveller_id = j.traveller_id AND b.status = 'confirmed'
+       JOIN hostels h ON h.id = b.hostel_id
+       WHERE j.event_id = @id AND lower(h.city) = lower(@city)`
+    )
+    .get<{ here: number | null; arriving: number | null }>({
+      id: eventId,
+      city,
+      day,
+      week: addDays(day, 7),
+    });
+  return { here: Number(row?.here ?? 0), arriving: Number(row?.arriving ?? 0) };
+}
+
 export async function toggleJoin(eventId: number, me: number, visitor: string | null = null) {
   const db = getDb();
   const exists = await db

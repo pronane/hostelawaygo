@@ -3,6 +3,7 @@ import Link from "next/link";
 import QRCode from "qrcode";
 import { BoardClock } from "@/components/board-clock";
 import { getCityEvents, getHostelBySlug } from "@/lib/queries";
+import { getGroupSummaries } from "@/lib/groups";
 import { isPro } from "@/lib/plans";
 import { appUrl } from "@/lib/constants";
 import { addDays, formatDay, timeOf, todayISO } from "@/lib/time";
@@ -46,6 +47,11 @@ export default async function BoardPage({ params }: Props) {
     .filter((e) => e.hostel_id !== hostel.id)
     .sort((a, b) => a.walk_minutes - b.walk_minutes);
 
+  // The desk does not care how many people tapped "join"; it cares how many are
+  // walking through the door together. A group of five at 19:30 is a decision
+  // about how much curry to cook.
+  const summaries = await getGroupSummaries(tonight.map((event) => event.id));
+
   const qr = await QRCode.toString(`${appUrl()}/stay/${hostel.slug}`, {
     type: "svg",
     margin: 0,
@@ -79,7 +85,12 @@ export default async function BoardPage({ params }: Props) {
                 <div key={event.id} className="board-row mine">
                   <span className="board-time">{timeOf(event.starts_at)}</span>
                   <span className="board-title">{event.title}</span>
-                  <span className="board-going">{event.going} going</span>
+                  <span className="board-going">
+                    {summaries.get(event.id)?.people
+                      ? `${summaries.get(event.id)!.people} in a group${summaries.get(event.id)!.groups > 1 ? ` of ${summaries.get(event.id)!.groups}` : ""} · `
+                      : ""}
+                    {event.going} going
+                  </span>
                 </div>
               ))}
               {rest.length > 0 ? <div className="board-label">Walking distance</div> : null}
@@ -89,6 +100,9 @@ export default async function BoardPage({ params }: Props) {
                   <span className="board-title">{event.title}</span>
                   <span className="board-meta">
                     {event.walk_minutes === 0 ? "here" : `${event.walk_minutes} min`}
+                    {summaries.get(event.id)?.people
+                      ? ` · group of ${summaries.get(event.id)!.largest}`
+                      : ""}
                     {event.going > 0 ? ` · ${event.going} going` : ""}
                   </span>
                 </div>

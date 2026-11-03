@@ -79,6 +79,7 @@ async function signOut(page: Page) {
 test.describe("the whole walk-through", () => {
   test("traveller → booking → partner application → approval → posting → paying → cancelling", async ({
     page,
+    browser,
   }) => {
     // ---------------------------------------------------------------- landing
     await test.step("a stranger lands and is told what this is", async () => {
@@ -105,6 +106,7 @@ test.describe("the whole walk-through", () => {
 
     // ----------------------------------------------------- join, and the gate
     let eventUrl = "";
+    let postedId = "";
 
     await test.step("joins a night, and chat asks for a confirmed email first", async () => {
       await page.goto("/");
@@ -147,6 +149,36 @@ test.describe("the whole walk-through", () => {
       await expect(page.getByText(message)).toBeVisible();
     });
 
+    // ------------------------------------------------------------- a group night
+    await test.step("makes a group link, and a friend joins it with nothing but a name", async () => {
+      await page.goto(eventUrl);
+
+      await page.locator("#group-size").selectOption("4");
+      await page.locator("#group-plan").fill(`Dorm crew — ${STAMP}`);
+      await page.getByRole("button", { name: /Make a group link/i }).click();
+
+      await expect(page).toHaveURL(/\/g\/[A-Za-z0-9_-]+/);
+      await expect(page.getByText(/Group made/i)).toBeVisible();
+      await expect(page.getByText(new RegExp(`Dorm crew — ${STAMP}`))).toBeVisible();
+      const groupUrl = page.url();
+
+      // A stranger with no account, in a browser with no cookies: that is the
+      // whole test. If joining needs a sign-up, the group dies in the chat.
+      const context = await browser.newContext();
+      const guest = await context.newPage();
+      await guest.goto(groupUrl);
+      await expect(guest.getByText(/Your first name/i)).toBeVisible();
+      await guest.locator("#group-name").fill("Iris");
+      await guest.getByRole("button", { name: "I'm in", exact: true }).click();
+      await expect(guest.getByText(/You're in/i)).toBeVisible();
+      await expect(guest.getByText("Iris")).toBeVisible();
+      await context.close();
+
+      await page.goto(eventUrl);
+      await expect(page.getByText(/Coming together/i)).toBeVisible();
+      await expect(page.getByText(/2 people in 1 group/i)).toBeVisible();
+    });
+
     // ---------------------------------------------------------- money, part 1
     await test.step("books a bed and pays for it (sandbox)", async () => {
       await page.goto("/explore");
@@ -160,8 +192,10 @@ test.describe("the whole walk-through", () => {
         await page.locator("a.hostel-row").nth(i).click();
         await expect(page).toHaveURL(/\/hostel\//);
 
-        await page.locator('input[name="in"]').fill(dayFromNow(20));
-        await page.locator('input[name="out"]').fill(dayFromNow(23));
+        // Two nights from now: a real booking, and an "arriving this week" on
+        // the event page — the cohort line at the bottom of this step.
+        await page.locator('input[name="in"]').fill(dayFromNow(2));
+        await page.locator('input[name="out"]').fill(dayFromNow(4));
         await page.getByRole("button", { name: /Update availability/i }).click();
 
         const book = page.getByRole("button", { name: /^Book · / }).first();
@@ -174,6 +208,10 @@ test.describe("the whole walk-through", () => {
       await expect(page).toHaveURL(/\/booking\//);
       await page.getByRole("button", { name: /^Pay .*\(sandbox\)$/ }).click();
       await expect(page.getByText(/^Paid · /)).toBeVisible();
+
+      // "19 going" is a number; "1 more arrives within the week" is a reason to go.
+      await page.goto(eventUrl);
+      await expect(page.getByText(/arrives? within the week/i)).toBeVisible();
     });
 
     await test.step("the stay shows up in trips", async () => {
@@ -259,6 +297,15 @@ test.describe("the whole walk-through", () => {
       await expect(page.locator("h1.page-title")).toContainText(HOSTEL.name);
       await expect(page.getByText(/Your plan/i)).toBeVisible();
 
+      // The poster on the wall is in the language at the desk, not ours.
+      await page.goto(`/hostel/${HOSTEL.slug}/kit?lang=pt`);
+      await expect(page.getByText(/O que há/i)).toBeVisible();
+      await expect(page.getByText(/hoje à noite/i)).toBeVisible();
+      await page.goto(`/hostel/${HOSTEL.slug}/kit?lang=pl`);
+      await expect(page.getByText(/Co jest/i)).toBeVisible();
+      await page.goto(`/hostel/${HOSTEL.slug}/kit`);
+      await expect(page.getByText(/Print it in their language/i)).toBeVisible();
+
       await page.goto("/post");
       const title = `Sunset paddle ${STAMP}`;
       await page.locator("#title").fill(title);
@@ -268,6 +315,8 @@ test.describe("the whole walk-through", () => {
       await page.locator("#description").fill("Two kayaks, one sunset. Meet at the gate.");
       await page.getByRole("button", { name: /Publish to .* travellers/i }).click();
       await expect(page).toHaveURL(/\/event\/\d+\?posted=1/, { timeout: 20_000 });
+      postedId = page.url().match(/\/event\/(\d+)/)?.[1] ?? "";
+      expect(postedId).not.toBe("");
       await expect(page.getByRole("heading", { level: 1 })).toContainText(title);
     });
 
@@ -299,6 +348,24 @@ test.describe("the whole walk-through", () => {
       await page.goto(`/hostel/${HOSTEL.slug}/board`);
       await expect(page.getByText(/part of Away Pro/i)).toHaveCount(0);
       await expect(page.getByText(/Scan to join in/i)).toBeVisible();
+
+      // A group at the hostel's own night, and the screen says how many are coming.
+      await page.goto(`/event/${postedId}`);
+      await page.locator("#group-size").selectOption("5");
+      await page.locator("#group-plan").fill("Paddle crew");
+      await page.getByRole("button", { name: /Make a group link/i }).click();
+      await expect(page).toHaveURL(/\/g\/[A-Za-z0-9_-]+/);
+      const paddleUrl = page.url();
+      const guestContext = await browser.newContext();
+      const guest = await guestContext.newPage();
+      await guest.goto(paddleUrl);
+      await guest.locator("#group-name").fill("Iris");
+      await guest.getByRole("button", { name: "I'm in", exact: true }).click();
+      await expect(guest.getByText(/You're in/i)).toBeVisible();
+      await guestContext.close();
+
+      await page.goto(`/hostel/${HOSTEL.slug}/board`);
+      await expect(page.getByText(/2 in a group/i)).toBeVisible();
 
       await page.goto("/hostel-admin");
       await page.getByRole("button", { name: /Cancel Pro/i }).click();

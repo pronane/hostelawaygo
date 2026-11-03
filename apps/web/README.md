@@ -98,10 +98,11 @@ Everything else — state, PKCE, nonce, JWKS lookup, signature check, linking �
 | `/c/[slug]` | Public city page — "What's on in Lisbon this week", grouped by day, with JSON-LD and a canonical URL. A city that is `opening` gets its own version instead: how far it has got against the launch bar, what is already happening, and one button for the hostel that would tip it over |
 | `/stay/[slug]` | What a reception QR points at: records an anonymous arrival, remembers the hostel, drops you on that city's feed |
 | `/sitemap.xml`, `/robots.txt` | Live cities and public events in, sessions/bookings/admin/share-my-night out |
-| `/event/[id]` | Event detail: traveller lens, who's going, join, share, **persisted chat** with report links |
+| `/event/[id]` | Event detail: traveller lens (including "4 of the 19 are staying in Lisbon that night", from real bookings), who's going, join, share, **group nights** (make a link, the group taps it), **persisted chat** with report links |
+| `/g/[token]` | A group night's link: who's in, and one field to add a first name. No account, no email — the thing that survives being pasted into a hostel WhatsApp group. `noindex` |
 | `/hostel/[slug]` | Hostel page, per-night availability for a date range, booking form |
-| `/hostel/[slug]/kit` | Partner kit (staff/admin): printable poster + dorm sticker with the hostel's QR, check-in lines, the attribution funnel |
-| `/hostel/[slug]/board` | The reception screen: tonight, the hostel's own nights first, the city's by walk time, and the QR. Full-bleed, dark, no chrome, refreshes itself every minute — open it on the tablet behind the desk and leave it. Public and `noindex` |
+| `/hostel/[slug]/kit` | Partner kit (staff/admin): printable poster + dorm sticker with the hostel's QR, in seven languages (`?lang=pt|es|fr|de|it|pl`, defaulting to the browser's), the check-in lines, the attribution funnel |
+| `/hostel/[slug]/board` | The reception screen: tonight, the hostel's own nights first (with "2 in a group" when a group is coming), the city's by walk time, and the QR. Full-bleed, dark, no chrome, refreshes itself every minute — open it on the tablet behind the desk and leave it. Public and `noindex` |
 | `/partner` | Self-serve hostel application: hostel + staff account in one step, status while it waits, one-click demo login for the pending applicant. A city we don't have yet can be typed in — it is created as `opening` and the applicant becomes its first hostel |
 | `/booking/[code]` | Receipt, sandbox payment, cancellation |
 | `/trips` | Your bookings, grouped by city |
@@ -216,12 +217,13 @@ app/            routes: here, next, explore, c/[slug], event, hostel, hostel/[sl
                 stay/[slug], partner, booking, trips, you, login, signup, post, hostel-admin,
                 admin/{cities,digest,ingest}, sitemap, robots, api/{join,events,ingest,digest}
 app/actions/    server actions: auth, city, cities (pipeline), partners (approve),
-                digest, chat, booking, staff, ingest
+                digest, chat, booking, staff, ingest, groups (group nights)
 components/     nav, account-block, aside, event-card, join-button, post-form,
                 city-picker, chat-live (SSE), share-button, sw-register
 lib/            db, schema, seed, seed-data, seed-extra, queries, auth, password,
                 payments, ingest, fixtures/, geo, time, format, types, constants,
-                cities (launch bar), arrivals (QR attribution), digest (weekly email)
+                cities (launch bar), arrivals (QR attribution), digest (weekly email),
+                groups (group nights), kit-copy (the kit in seven languages)
 scripts/        reset-db.mjs, ingest.mjs, make-icons.py
 public/         sw.js, icons/
 ```
