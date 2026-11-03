@@ -91,6 +91,8 @@ Everything else — state, PKCE, nonce, JWKS lookup, signature check, linking �
 |---|---|
 | `/` | HERE — the current city's feed grouped by day, filter chips (`/?f=free`, `/?f=solo`, …), city switcher. A stranger with no session and no city cookie gets a short explanation above the feed first (`components/welcome.tsx`) |
 | `/hostels` | For hostels: what the front desk gets, a day with Away, what it costs, and three ways to start. The supply-side landing page |
+| `/pricing` | Free vs Pro (€19/month or €190/year): what each includes, why €19, what is deliberately never charged, and the questions hostels ask. Indexed |
+| `/billing/sandbox/[reference]` | Stand-in for Stripe Checkout when no key is configured: says so, charges nothing, writes the same `billing_events` row. With `STRIPE_SECRET_KEY` the same button goes to Stripe and only its signed webhook can switch Pro on |
 | `/next` | NEXT — the next city's events filtered to your trip window; out-of-window cards are greyed, not hidden |
 | `/explore` | Every **live** city, with its hostels and what's on; cities still in `opening` are named at the bottom as "opening next" |
 | `/c/[slug]` | Public city page — "What's on in Lisbon this week", grouped by day, with JSON-LD and a canonical URL. A city that is `opening` gets its own version instead: how far it has got against the launch bar, what is already happening, and one button for the hostel that would tip it over |
@@ -111,7 +113,7 @@ Everything else — state, PKCE, nonce, JWKS lookup, signature check, linking �
 | `/verify?token=…` | Confirms an email address from the link we send |
 | `/login`, `/signup` | Real accounts (`?next=` is validated to stay on-site) |
 | `/post` | Hostel mode — publish tonight's event in about a minute (staff only) |
-| `/hostel-admin` | Portal: attribution funnel, upcoming events, arrivals/bookings, reported chat, cancel event (staff only) |
+| `/hostel-admin` | Portal: plan (upgrade/cancel, billing history), attribution funnel, upcoming events, arrivals/bookings, reported chat, cancel event (staff only) |
 | `/admin/cities` | Ops: the city pipeline — readiness per city, and "open a city" (admin only) |
 | `/admin/cities/[slug]` | One city's launch bar, the five-week runbook, its partners, the application queue (approve/decline), and the go-live switch (admin only) |
 | `/admin/digest` | Two emails: the arrivals digest (who's due, a real preview, send, per-trip log) and the hostel week (what each hostel posted, joins, QR scans → joins → beds, one per hostel per ISO week) |
@@ -121,8 +123,14 @@ Everything else — state, PKCE, nonce, JWKS lookup, signature check, linking �
 | `POST /api/ingest` | Runs the import. Requires `x-ingest-token` or an admin session |
 | `POST /api/digest` | Sends the arrivals digest (`{ dryRun }`), or the hostel week (`{ hostels: true }`). Requires `x-digest-token` or an admin session |
 | `GET /api/events/[id]/stream` | SSE feed of new chat messages (`Last-Event-ID` aware) |
-| `POST /api/payments/webhook` | Signed provider callbacks: `payment.paid`, `payment.refunded`, `checkout.session.completed` |
+| `POST /api/payments/webhook` | Signed provider callbacks: `payment.paid`, `payment.refunded`, `checkout.session.completed` (a `pay_…` reference pays a booking, a `sub_…` reference switches Pro on), `customer.subscription.deleted` cancels it |
 | `GET /api/health` | Liveness for a deploy platform: `{ ok, schema, cities, events, payments, demo }`, `503` if the schema doesn't match the build |
+
+### Plans
+
+`hostels.plan` is `free` or `pro` (`lib/plans.ts`). `isPro()` is a date check, not a stored flag that has to be expired by a job: a cancelled subscription keeps Pro until `plan_renews_on` and then simply stops. Pro gates two surfaces — the reception screen (`/hostel/[slug]/board`) and the weekly receipt (`lib/hostel-week.ts`); everything that spreads Away (listing, posting, the QR kit, the chat) is free, deliberately.
+
+Billing goes through `lib/billing.ts`. With `STRIPE_SECRET_KEY` set, `startSubscription()` opens a real Stripe Checkout Session and only the signed webhook activates anything; without it the provider is `sandbox` and `/billing/sandbox/[reference]` stands in, so the gate can be demonstrated on a laptop.
 
 ## Growth
 

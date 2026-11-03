@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = "8";
+export const SCHEMA_VERSION = "9";
 
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS meta (
@@ -37,7 +37,15 @@ CREATE TABLE IF NOT EXISTS hostels (
   contact_email TEXT NOT NULL DEFAULT '',
   applied_at TEXT,
   note TEXT NOT NULL DEFAULT '',
-  beds INTEGER NOT NULL DEFAULT 0
+  beds INTEGER NOT NULL DEFAULT 0,
+  -- 'free' | 'pro'. A subscription that lapses is not a row anybody has to
+  -- clean up: isPro() reads plan_renews_on, so an expired Pro simply stops
+  -- being Pro on the date it was meant to.
+  plan TEXT NOT NULL DEFAULT 'free',
+  plan_interval TEXT NOT NULL DEFAULT 'month',
+  plan_renews_on TEXT,
+  plan_since TEXT,
+  plan_cancelled INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS travellers (
@@ -252,6 +260,19 @@ CREATE TABLE IF NOT EXISTS digest_sends (
   UNIQUE (traveller_id, trip_key)
 );
 
+CREATE TABLE IF NOT EXISTS billing_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  hostel_id INTEGER NOT NULL REFERENCES hostels(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL,
+  plan TEXT NOT NULL,
+  interval TEXT NOT NULL DEFAULT 'month',
+  amount_cents INTEGER NOT NULL DEFAULT 0,
+  provider TEXT NOT NULL DEFAULT 'sandbox',
+  reference TEXT NOT NULL DEFAULT '',
+  note TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS ingest_runs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   source TEXT NOT NULL,
@@ -269,6 +290,7 @@ CREATE TABLE IF NOT EXISTS ingest_runs (
 
 /** Dropped in this order so foreign keys stay happy. */
 export const DROP_ALL = `
+DROP TABLE IF EXISTS billing_events;
 DROP TABLE IF EXISTS digest_sends;
 DROP TABLE IF EXISTS oauth_states;
 DROP TABLE IF EXISTS identities;
@@ -289,3 +311,30 @@ DROP TABLE IF EXISTS cities;
 DROP TABLE IF EXISTS ingest_runs;
 DROP TABLE IF EXISTS meta;
 `;
+
+/**
+ * Additive migrations, oldest first.
+ *
+ * The app used to answer any schema change with `DROP_ALL` + reseed, which was
+ * honest while every database was demo data. It stopped being honest the moment
+ * a hostel applied through `/partner`. So: a database that can be walked forward
+ * is walked forward, and only a database that cannot (a version this code has
+ * never seen, or a step that fails) is rebuilt.
+ *
+ * Every step must be safe to run once on a database that already has the column
+ * from a fresh install — SQLite has no `ADD COLUMN IF NOT EXISTS`, so a
+ * duplicate-column error is caught and treated as success.
+ */
+export const MIGRATIONS: { to: string; hint: string; statements: string[] }[] = [
+  {
+    to: "9",
+    hint: "hostel plans + billing_events",
+    statements: [
+      "ALTER TABLE hostels ADD COLUMN plan TEXT NOT NULL DEFAULT 'free'",
+      "ALTER TABLE hostels ADD COLUMN plan_interval TEXT NOT NULL DEFAULT 'month'",
+      "ALTER TABLE hostels ADD COLUMN plan_renews_on TEXT",
+      "ALTER TABLE hostels ADD COLUMN plan_since TEXT",
+      "ALTER TABLE hostels ADD COLUMN plan_cancelled INTEGER NOT NULL DEFAULT 0",
+    ],
+  },
+];

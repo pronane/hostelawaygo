@@ -284,6 +284,15 @@ export async function seed(db: Db): Promise<void> {
        WHERE hostel_id = ? AND visitor = 'seed-visitor-0'`
     ).run(martaId, arrivalsHostel);
 
+    /* one hostel on Pro, so the demo shows both sides of the gate */
+    await db
+      .prepare(
+        `UPDATE hostels SET plan = 'pro', plan_interval = 'month', plan_since = @since,
+           plan_renews_on = @renews, plan_cancelled = 0
+         WHERE slug = 'home-lisbon'`
+      )
+      .run({ since: addDays(today, -40), renews: addDays(today, 12) });
+
     /* meta */
     await db.prepare("INSERT INTO meta (key, value) VALUES ('schema_version', ?)").run(SCHEMA_VERSION);
     await db.prepare("INSERT INTO meta (key, value) VALUES ('seeded_on', ?)").run(today);

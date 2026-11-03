@@ -3,6 +3,7 @@ import Link from "next/link";
 import QRCode from "qrcode";
 import { BoardClock } from "@/components/board-clock";
 import { getCityEvents, getHostelBySlug } from "@/lib/queries";
+import { isPro } from "@/lib/plans";
 import { appUrl } from "@/lib/constants";
 import { addDays, formatDay, timeOf, todayISO } from "@/lib/time";
 import { plural } from "@/lib/format";
@@ -36,6 +37,7 @@ export default async function BoardPage({ params }: Props) {
   const { slug } = await params;
   const hostel = await getHostelBySlug(slug);
   if (!hostel || hostel.status !== "active") notFound();
+  if (!isPro(hostel)) return <BoardLocked hostel={hostel} />;
 
   const today = todayISO();
   const tonight = await getCityEvents(hostel.city, today, addDays(today, 1), null);
@@ -112,6 +114,41 @@ export default async function BoardPage({ params }: Props) {
           everything on in {hostel.city} →
         </Link>
       </footer>
+    </div>
+  );
+}
+
+/**
+ * It is a screen in a lobby, so "sign in to upgrade" is the wrong answer: this
+ * has to explain itself to whoever walks past it. The hostel's own staff get the
+ * button; a guest reading the tablet gets a sentence and the price.
+ */
+function BoardLocked({ hostel }: { hostel: { name: string; slug: string } }) {
+  return (
+    <div className="board">
+      <header className="board-head">
+        <div className="board-hostel">{hostel.name}</div>
+        <div className="board-kicker">the reception screen</div>
+      </header>
+      <div className="board-body">
+        <div className="board-list">
+          <div className="board-empty">
+            Tonight&apos;s plan, live on this screen, is part of Away Pro — €19 a month.
+            <br />
+            <span style={{ fontSize: 15, color: "#8d7d72" }}>
+              Poster, QR and posting tonight are free, and always will be.
+            </span>
+          </div>
+        </div>
+        <aside className="board-qr">
+          <Link href="/pricing" className="btn primary" style={{ width: 240, textAlign: "center" }}>
+            See what Pro is
+          </Link>
+          <Link href={`/hostel/${hostel.slug}`} className="board-link" style={{ fontSize: 12 }}>
+            the guest view of this hostel →
+          </Link>
+        </aside>
+      </div>
     </div>
   );
 }

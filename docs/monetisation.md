@@ -118,17 +118,23 @@ The real risk is not the infra bill. It is that hostels will not pay a subscript
 2. **Charge after value, not before.** Pro only unlocks for hostels that have posted in the last 30 days — they have seen the funnel work before they see a price.
 3. **Annual by default.** €190/year is one dorm bed a night for a season, and it removes twelve renewal conversations.
 
-## 6. What has to be built before any of this can be charged
+## 6. What is built, and what is not
 
-None of it is in the repo today, and none of it is large:
+Shipped:
 
-- [ ] `plan` on `hostels` (`free` | `pro`) and a `billing_events` log — one column, one table, no rewrite.
-- [ ] A gate in the portal: the reception screen, the weekly receipt and the arrivals digest check `plan`.
-- [ ] Stripe Checkout for the subscription (the payments webhook in the repo already models the shape: signed provider callbacks, status transitions).
-- [ ] A "your plan" block in `/hostel-admin` with the invoice history and a cancel button that works without an email.
-- [ ] The receipt email needs a footer with the plan and a one-click cancel link — the same courtesy the outreach tool gives its prospects.
+- [x] `plan`, `plan_interval`, `plan_renews_on`, `plan_since`, `plan_cancelled` on `hostels`, and a `billing_events` log. Schema 9; **migrated, not rebuilt** — `MIGRATIONS` in `lib/schema.ts` walks an existing database forward, so a hostel that applied last month survives a deploy.
+- [x] Gates: the reception screen (`/hostel/[slug]/board`) and the weekly receipt are Pro (`lib/plans.ts` → `isPro()`). Listing, posting, the QR kit and the chat stay free, deliberately.
+- [x] Subscription checkout: Stripe Checkout when `STRIPE_SECRET_KEY` is set, a sandbox page that says it is one when it isn't. Pro is switched on **only** by the signed webhook (or the sandbox confirm), never by a browser landing on a success page.
+- [x] Cancelling in one click from the portal, with no email to anybody: `plan_cancelled = 1`, Pro runs to `plan_renews_on`, then `isPro()` stops being true. No nightly job required; the daily digest cron sweeps lapsed rows so the log stays honest.
+- [x] Billing history in `/hostel-admin` (checkout, activated, cancelled, expired) and `/pricing` as a public, indexed page.
 
-Until then the honest position, and the one the `/hostels` page takes: free while the city is opening, and no hosted tier to buy into yet.
+Still to do:
+
+- [ ] The receipt email's footer should carry the plan and a one-click cancel link — the same courtesy the outreach tool gives its prospects.
+- [ ] Invoices/VAT. The sandbox records what would be billed; a real Stripe account should also email the receipt.
+- [ ] Annual plan is offered in the UI; Stripe gets whichever interval was pressed, but there is no dunning retry beyond Stripe's own.
+
+The honest position on the public pages is now the menu rather than the apology: free is the product, Pro is €19, and both are described before anybody signs up.
 
 ## 7. The uncomfortable version
 

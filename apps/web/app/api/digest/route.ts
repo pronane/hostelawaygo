@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth";
 import { runDigest } from "@/lib/digest";
 import { runHostelWeek } from "@/lib/hostel-week";
+import { settleLapsed } from "@/lib/billing";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,10 @@ export async function POST(request: Request) {
 
   const body = (await request.json().catch(() => ({}))) as { dryRun?: boolean; hostels?: boolean };
 
+  // A subscription that ran out is not an error to handle, it is a date that
+  // passed. The daily cron is the one thing that runs every day, so it does it.
+  const lapsed = await settleLapsed();
+
   // Two audiences, one cron entry point: travellers before they land, hostels
   // after they posted. `{ "hostels": true }` runs the second instead of the first.
   if (body.hostels) {
@@ -38,6 +43,7 @@ export async function POST(request: Request) {
       {
         scope: "hostels",
         dryRun: Boolean(body.dryRun),
+        lapsed,
         considered: week.considered,
         sent: week.sent,
         results: week.results.map((r) => ({
@@ -60,6 +66,7 @@ export async function POST(request: Request) {
 
   revalidatePath("/admin/digest");
   return NextResponse.json({
+    lapsed,
     considered: result.considered,
     sent: result.sent,
     results: result.results.map((r) => ({

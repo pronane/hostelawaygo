@@ -30,6 +30,9 @@ export default async function ForHostelsPage() {
           <Link href="/partner" className="btn primary">
             Put your hostel on the map
           </Link>
+          <Link href="/pricing" className="btn">
+            Pricing
+          </Link>
           <Link href="/login?next=/hostel-admin" className="btn">
             Look inside a portal
           </Link>
@@ -142,8 +145,13 @@ export default async function ForHostelsPage() {
             building.
           </li>
           <li>
-            <b>Free while your city is opening.</b> The product is being paid for by the cities that
-            have enough hostels posting; there is no hosted tier to buy into yet.
+            <b>Free to be here, €19 to see what worked.</b> Listing, posting, the QR kit and the chat
+            are free and stay free. Pro is €19 a month — the reception screen and the weekly receipt —
+            and{" "}
+            <Link href="/pricing" style={{ textDecoration: "underline" }}>
+              the whole price list is one page
+            </Link>
+            .
           </li>
           <li>
             <b>It is not a channel manager.</b> Inventory, rates and stays stay in whatever system

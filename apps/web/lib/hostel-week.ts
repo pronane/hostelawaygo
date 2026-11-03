@@ -3,6 +3,7 @@ import { mailEnabled, sendMail } from "./mail";
 import { appUrl } from "./constants";
 import { addDays, formatDay, timeOf, todayISO } from "./time";
 import { plural } from "./format";
+import { isPro } from "./plans";
 
 /**
  * The weekly note to a hostel: what it put on, who came, and what the QR did.
@@ -203,7 +204,7 @@ export function composeHostelWeek(week: HostelWeek, base: string): { subject: st
 
 export type HostelWeekResult = {
   week: HostelWeek;
-  status: "sent" | "preview" | "skipped" | "sent-already" | "no-address" | "failed";
+  status: "sent" | "preview" | "skipped" | "sent-already" | "no-address" | "not-pro" | "failed";
   note: string;
   subject: string;
   text: string;
@@ -222,15 +223,22 @@ export async function runHostelWeek(opts: { dryRun?: boolean } = {}): Promise<{
   const db = getDb();
   const base = appUrl();
   const hostels = await db
-    .prepare("SELECT id FROM hostels WHERE status = 'active' ORDER BY id")
-    .all<{ id: number }>();
+    .prepare("SELECT id, plan, plan_renews_on FROM hostels WHERE status = 'active' ORDER BY id")
+    .all<{ id: number; plan: string; plan_renews_on: string | null }>();
 
   const results: HostelWeekResult[] = [];
   let sent = 0;
 
-  for (const { id } of hostels) {
+  for (const { id, plan, plan_renews_on } of hostels) {
     const week = await hostelWeek(id);
     if (!week) continue;
+
+    // The receipt is the reason to pay: it only goes to hostels on Pro. Free
+    // hostels still get everything that spreads Away — the poster, the chat.
+    if (!isPro({ plan, plan_renews_on })) {
+      results.push({ week, status: "not-pro", note: "free plan — the receipt is Pro", subject: "", text: "" });
+      continue;
+    }
 
     if (!week.staffId || !week.email) {
       results.push({ week, status: "no-address", note: "no front desk account to write to", subject: "", text: "" });
