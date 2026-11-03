@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { EventCard } from "@/components/event-card";
 import { Welcome } from "@/components/welcome";
 import { CityPicker } from "@/components/city-picker";
+import { TonightStrip } from "@/components/tonight-strip";
 import { FILTERS } from "@/lib/constants";
 import { CITY_COOKIE, getCurrentUser } from "@/lib/auth";
 import {
@@ -14,6 +15,7 @@ import {
   getTrip,
   groupByDay,
 } from "@/lib/queries";
+import { getTonightDeals } from "@/lib/deals";
 import { addDays, dayHeading, formatDay, nightsBetween, todayISO } from "@/lib/time";
 import { plural } from "@/lib/format";
 
@@ -38,6 +40,8 @@ export default async function HerePage({ searchParams }: Props) {
   const filtered = filter === "all" ? events : events.filter((e) => e.tags.includes(filter));
   const groups = groupByDay(filtered);
   const trip = await getTrip(city.slug, user?.id ?? null);
+  // A bed for tonight beats anything on Thursday, so it goes first.
+  const deals = await getTonightDeals(city.slug, today);
   const cities = await getLiveCities();
   // Somebody who has never picked a city and has no session is a stranger, and a
   // stranger looking at a feed of somebody else's week has no idea what this is.
@@ -87,6 +91,8 @@ export default async function HerePage({ searchParams }: Props) {
           </div>
         ) : null}
       </header>
+
+      <TonightStrip deals={deals} />
 
       {fromHostel ? (
         <div className="notice" role="status">

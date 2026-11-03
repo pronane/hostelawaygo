@@ -403,6 +403,14 @@ async function main() {
   ops.expect(new RegExp(HOSTEL.name), "the hostel on the admin city page");
   ops.expect(/approved|live now|is live/i, "confirmation from ops");
 
+  // Applying is not approval: the count moves now, and only now.
+  await anon.open(`/c/${CITY.slug}`);
+  const afterFirstPartner = partnerCount(anon.html);
+  check(
+    afterFirstPartner === pendingPartners + 1,
+    `the city counts ${afterFirstPartner} partners after approval, expected ${pendingPartners + 1}`
+  );
+
   // ------------------------------------------- 13. the hostel signs in and posts
   step("the approved hostel signs in and posts tonight");
   await hostel.signIn(HOSTEL.email);
@@ -433,7 +441,64 @@ async function main() {
   hostel.expect(/What's on/i, "English when no language is asked for");
   hostel.expect(/Print it in their language/i, "the language switcher");
 
-  // ----------------------------------------------- 14. the screen is locked
+  // ------------------------------------------------- 14b. a bed for tonight
+  step("puts the empty bed in the feed, and a traveller books it at that price");
+  await hostel.open("/post");
+  hostel.expect(/Beds free tonight/i, "the tonight form next to the event form");
+  await hostel.submit("Put it in the feed", {
+    beds: "2",
+    price: "15",
+    until: "23:00",
+    note: `Walk in and ask for Away — ${STAMP}`,
+  });
+  hostel.expect(/Live: 2 beds at €15/i, "the deal being live on the staff page");
+
+  await anon.open(`/c/${CITY.slug}`);
+  anon.expect(/beds? free tonight/i, "the deal in the city feed");
+  anon.expect(/€15/, "the price the desk set");
+
+  await anon.open(`/hostel/${HOSTEL.slug}?in=${isoDay(0)}&out=${isoDay(1)}`);
+  anon.expect(/Tonight only/i, "tonight's price on the hostel page");
+
+  // The traveller books tonight and pays the desk's price, not the room's.
+  await me.open(`/hostel/${HOSTEL.slug}?in=${isoDay(0)}&out=${isoDay(1)}`);
+  const tonightBooking = await me.submit("room-book");
+  const tonightRef = tonightBooking.path.match(/\/booking\/([a-z0-9-]+)/i)?.[1];
+  check(tonightRef, `no reference for tonight's booking: ${tonightBooking.path}`, strip(tonightBooking.html).slice(0, 500));
+  tonightBooking.expect(/€15/, "the deal price in the total");
+  const tonightPaid = await me.submit("Pay", {});
+  tonightPaid.expect(/Paid|Confirmed/i, "tonight's booking being paid");
+
+  // ------------------------------------------- 14c. bring the hostel next door
+  step("brings the hostel next door, and the referral earns two months of Pro");
+  const neighbour = new Client("neighbour");
+  await neighbour.open(`/partner?ref=${HOSTEL.slug}`);
+  neighbour.expect(new RegExp(`${HOSTEL.name} sent you`, "i"), "the referral being acknowledged");
+  await neighbour.submit("Apply", {
+    hostelName: `Casa Vizinhanca ${STAMP}`,
+    city: CITY.slug,
+    area: "Centro",
+    description: "Six rooms over a bakery, two minutes from the beach and the bus.",
+    beds: "18",
+    price: "19",
+    contactName: "Rui Neves",
+    email: `journey-neighbour-${STAMP}@away.test`,
+    password: PASSWORD,
+    ref: HOSTEL.slug,
+  });
+  neighbour.expect(/Application received/i, "the neighbour's application");
+
+  await ops.open(`/admin/cities/${CITY.slug}`);
+  const neighbourRow = hostelIdFrom(ops.html, `Casa Vizinhanca ${STAMP}`);
+  await ops.submit("Approve", { hostelId: String(neighbourRow) });
+  check(/approved=/.test(ops.path), `the neighbour was not approved: ${ops.path}`, strip(ops.html).slice(0, 500));
+  ops.expect(/is on the map/i, "the approval confirmation");
+
+  await hostel.open("/hostel-admin");
+  hostel.expect(/2 months of Pro credited/i, "the credit landing on the referrer");
+  hostel.expect(new RegExp(`/partner\\?ref=${HOSTEL.slug}`), "the referral link in the portal");
+
+  // ----------------------------------------------- 15. the screen is locked
   step("the reception screen is locked while the hostel is free");
   await hostel.open(`/hostel/${HOSTEL.slug}/kit`);
   hostel.expect(/Reception screen/i, "the kit's link to the screen");
@@ -450,6 +515,9 @@ async function main() {
   const confirmed = await checkout.submit("Confirm");
   check(/billing=activated/.test(confirmed.path), `expected ?billing=activated, got ${confirmed.path}`, strip(confirmed.html).slice(0, 500));
   confirmed.expect(/Pro is on/i, "Pro switched on");
+  // One month of Pro, plus the two months the referral earned.
+  const creditedUntil = addMonthsIso(addMonthsIso(isoDay(0), 1), 2);
+  confirmed.expect(new RegExp(creditedUntil), "the renewal date moved by the credit");
 
   // -------------------------------------------------- 16. unlocked, then cancel
   step("Pro unlocks the screen, and the hostel can cancel in one click");
@@ -477,14 +545,14 @@ async function main() {
   hostel.expect(/billing_events|receipt|history|Cancelled|ending/i, "the billing trail");
 
   // --------------------------------------------- 17. the city counts a partner
-  step("the city page now counts one approved partner");
+  step("the city page counts every approved partner, including the neighbour");
   await anon.open(`/c/${CITY.slug}`);
   anon.expect(new RegExp(HOSTEL.name), "the new hostel on the city page");
   anon.expect(/PARTNER HOSTELS|Partner hostels/i, "the partner list");
   const approvedPartners = partnerCount(anon.html);
   check(
-    approvedPartners === pendingPartners + 1,
-    `the city counts ${approvedPartners} partners after approval, expected ${pendingPartners + 1}`
+    approvedPartners === afterFirstPartner + 1,
+    `the city counts ${approvedPartners} partners after the referral, expected ${afterFirstPartner + 1}`
   );
 
   // ------------------------------------------- 18. a second traveller cancels
@@ -522,6 +590,17 @@ function hostelIdFrom(html, name) {
     if (id) return id;
   }
   check(false, `no admin row for ${name}`, strip(html).slice(0, 900));
+}
+
+/** The same date maths the app uses: add whole months, clamp the day. */
+function addMonthsIso(iso, months) {
+  const date = new Date(`${iso}T00:00:00Z`);
+  const day = date.getUTCDate();
+  date.setUTCDate(1);
+  date.setUTCMonth(date.getUTCMonth() + months);
+  const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
+  date.setUTCDate(Math.min(day, lastDay));
+  return date.toISOString().slice(0, 10);
 }
 
 /** "1 / 3 partner hostels" → 1. */

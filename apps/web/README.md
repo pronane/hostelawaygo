@@ -100,9 +100,10 @@ Everything else — state, PKCE, nonce, JWKS lookup, signature check, linking �
 | `/sitemap.xml`, `/robots.txt` | Live cities and public events in, sessions/bookings/admin/share-my-night out |
 | `/event/[id]` | Event detail: traveller lens (including "4 of the 19 are staying in Lisbon that night", from real bookings), who's going, join, share, **group nights** (make a link, the group taps it), **persisted chat** with report links |
 | `/g/[token]` | A group night's link: who's in, and one field to add a first name. No account, no email — the thing that survives being pasted into a hostel WhatsApp group. `noindex` |
-| `/hostel/[slug]` | Hostel page, per-night availability for a date range, booking form |
+| `/hostel/[slug]` | Hostel page, per-night availability for a date range, booking form. When the desk has posted a bed for tonight, the page says so and the first night is charged at that price |
 | `/hostel/[slug]/kit` | Partner kit (staff/admin): printable poster + dorm sticker with the hostel's QR, in seven languages (`?lang=pt|es|fr|de|it|pl`, defaulting to the browser's), the check-in lines, the attribution funnel |
 | `/hostel/[slug]/board` | The reception screen: tonight, the hostel's own nights first (with "2 in a group" when a group is coming), the city's by walk time, and the QR. Full-bleed, dark, no chrome, refreshes itself every minute — open it on the tablet behind the desk and leave it. Public and `noindex` |
+| `/partner?ref=[slug]` | The same application, with the hostel that sent them stamped on it: approval credits the referrer two months of Pro. A signed-in traveller is still refused |
 | `/partner` | Self-serve hostel application: hostel + staff account in one step, status while it waits, one-click demo login for the pending applicant. A city we don't have yet can be typed in — it is created as `opening` and the applicant becomes its first hostel |
 | `/booking/[code]` | Receipt, sandbox payment, cancellation |
 | `/trips` | Your bookings, grouped by city |

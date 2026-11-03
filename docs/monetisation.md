@@ -126,7 +126,8 @@ Shipped:
 - [x] Gates: the reception screen (`/hostel/[slug]/board`) and the weekly receipt are Pro (`lib/plans.ts` → `isPro()`). Listing, posting, the QR kit and the chat stay free, deliberately.
 - [x] Subscription checkout: Stripe Checkout when `STRIPE_SECRET_KEY` is set, a sandbox page that says it is one when it isn't. Pro is switched on **only** by the signed webhook (or the sandbox confirm), never by a browser landing on a success page.
 - [x] Cancelling in one click from the portal, with no email to anybody: `plan_cancelled = 1`, Pro runs to `plan_renews_on`, then `isPro()` stops being true. No nightly job required; the daily digest cron sweeps lapsed rows so the log stays honest.
-- [x] Billing history in `/hostel-admin` (checkout, activated, cancelled, expired) and `/pricing` as a public, indexed page.
+- [x] Billing history in `/hostel-admin` (checkout, activated, cancelled, expired, credited) and `/pricing` as a public, indexed page.
+- [x] Referral credit: a hostel that brings another one earns two months of Pro, applied to the renewal date at activation (`hostels.credit_months`, a `credited` billing event). Credit, not cash, and never a cut of the neighbour's beds.
 
 Still to do:
 

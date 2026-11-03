@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser, startSession } from "@/lib/auth";
 import { citySlugFrom } from "@/lib/cities";
 import { hashPassword } from "@/lib/password";
-import { createOpeningCity, createPartnerApplication, getCity } from "@/lib/queries";
+import { createOpeningCity, createPartnerApplication, getCity, getHostelBySlug } from "@/lib/queries";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -27,6 +27,12 @@ export async function applyPartnerAction(formData: FormData) {
   const note = String(formData.get("note") ?? "").trim().slice(0, 400);
   const beds = Number(formData.get("beds"));
   const priceEuros = Number(formData.get("price"));
+  // Who sent them: a hostel slug off a referral link. Only a real, active hostel
+  // counts, so a garbage `?ref=` cannot mint credit for anybody.
+  const refSlug = String(formData.get("ref") ?? "").trim().slice(0, 80);
+  const referrer = refSlug ? await getHostelBySlug(refSlug) : null;
+  const referredBy = referrer && referrer.status === "active" ? referrer.id : null;
+
   const contactName = String(formData.get("contactName") ?? "").trim().slice(0, 60);
   const email = String(formData.get("email") ?? "").trim().toLowerCase().slice(0, 160);
   const password = String(formData.get("password") ?? "");
@@ -80,6 +86,7 @@ export async function applyPartnerAction(formData: FormData) {
     contactName,
     email,
     passwordHash: hashPassword(password),
+    referredBy,
   });
 
   if (!result.ok) {

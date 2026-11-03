@@ -34,7 +34,7 @@ function reference(hostelId: number): string {
 
 async function record(input: {
   hostelId: number;
-  kind: "checkout" | "activated" | "cancelled" | "expired" | "renewed";
+  kind: "checkout" | "activated" | "cancelled" | "expired" | "renewed" | "credited";
   plan: "free" | "pro";
   interval: Interval;
   amountCents: number;
@@ -110,6 +110,48 @@ export async function startSubscription(
   }
 }
 
+/** Adds whole months to an ISO date, clamping the day for short months. */
+function addMonths(iso: string, months: number): string {
+  const date = new Date(`${iso}T00:00:00Z`);
+  const day = date.getUTCDate();
+  date.setUTCDate(1);
+  date.setUTCMonth(date.getUTCMonth() + months);
+  const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
+  date.setUTCDate(Math.min(day, lastDay));
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Referral credit: the hostel that brought a new one gets two months of Pro.
+ *
+ * It is credit, not cash, and it is deliberately small: it should make a
+ * partner forward the link to the hostel two streets over, not turn anybody into
+ * a sales rep. Two months is roughly the length of a shoulder season, and it is
+ * the cheapest lever on the three-partner launch bar.
+ */
+export async function creditReferral(input: {
+  referrerId: number;
+  newHostelName: string;
+  months?: number;
+}): Promise<void> {
+  const months = input.months ?? 2;
+  const db = getDb();
+  await db
+    .prepare("UPDATE hostels SET credit_months = credit_months + ? WHERE id = ?")
+    .run(months, input.referrerId);
+
+  await record({
+    hostelId: input.referrerId,
+    kind: "credited",
+    plan: "pro",
+    interval: "month",
+    amountCents: 0,
+    provider: billingProvider(),
+    reference: `ref_${input.referrerId}_${Date.now()}`,
+    note: `referred ${input.newHostelName} · ${months} months`,
+  });
+}
+
 /** Switches Pro on. Idempotent: activating twice does not double a renewal. */
 export async function activateSubscription(
   referenceOrHostelId: string | number,
@@ -141,7 +183,14 @@ export async function activateSubscription(
     .get(reference);
   if (used) return { ok: true, hostelId, note: "already activated" };
 
-  const renews = renewalDate(interval);
+  // Referral credit is applied at the moment Pro starts, not as a discount on
+  // the checkout: the price is the price, and the months are the thank-you.
+  const credit = await db
+    .prepare("SELECT credit_months FROM hostels WHERE id = ?")
+    .get<{ credit_months: number }>(hostelId);
+  const months = Number(credit?.credit_months ?? 0);
+  const renews = months > 0 ? addMonths(renewalDate(interval), months) : renewalDate(interval);
+  if (months > 0) await db.prepare("UPDATE hostels SET credit_months = 0 WHERE id = ?").run(hostelId);
   await db
     .prepare(
       `UPDATE hostels SET plan = 'pro', plan_interval = @interval, plan_since = COALESCE(plan_since, @today),
@@ -158,10 +207,14 @@ export async function activateSubscription(
     amountCents: PRICE_CENTS[interval],
     provider,
     reference,
-    note: already ? "renewed" : "first month",
+    note: (already ? "renewed" : "first month") + (months > 0 ? ` · ${months} months credited` : ""),
   });
 
-  return { ok: true, hostelId, note: `${hostel.name} is on Pro until ${renews}` };
+  return {
+    ok: true,
+    hostelId,
+    note: `${hostel.name} is on Pro until ${renews}${months > 0 ? ` (${months} months credited)` : ""}`,
+  };
 }
 
 /**

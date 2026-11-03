@@ -26,6 +26,17 @@ const TRAVELLER = {
   email: `journey-traveller-${STAMP}@away.test`,
   password: "walkthrough-123",
 };
+/** The same month maths the app uses when referral credit is spent. */
+function addMonths(iso: string, months: number): string {
+  const date = new Date(`${iso}T00:00:00Z`);
+  const day = date.getUTCDate();
+  date.setUTCDate(1);
+  date.setUTCMonth(date.getUTCMonth() + months);
+  const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
+  date.setUTCDate(Math.min(day, lastDay));
+  return date.toISOString().slice(0, 10);
+}
+
 /** Same transform the app uses on a hostel's name, so the slug is known up front. */
 const slugify = (value: string) =>
   value
@@ -306,6 +317,21 @@ test.describe("the whole walk-through", () => {
       await page.goto(`/hostel/${HOSTEL.slug}/kit`);
       await expect(page.getByText(/Print it in their language/i)).toBeVisible();
 
+      // The other half of the same minute: a bed, not an event.
+      await page.goto("/post");
+      await page.locator("#deal-beds").fill("2");
+      await page.locator("#deal-price").fill("15");
+      await page.locator("#deal-until").fill("23:00");
+      await page.locator("#deal-note").fill("Walk in and ask for Away");
+      await page.getByRole("button", { name: /Put it in the feed/i }).click();
+      await expect(page.getByText(/Live: 2 beds at €15/i)).toBeVisible();
+
+      await page.goto(`/c/${CITY.slug}`);
+      await expect(page.getByText(/beds? free tonight/i)).toBeVisible();
+      await expect(page.getByText(/€15/).first()).toBeVisible();
+      await page.goto(`/hostel/${HOSTEL.slug}?in=${dayFromNow(0)}&out=${dayFromNow(1)}`);
+      await expect(page.getByText(/Tonight only/i)).toBeVisible();
+
       await page.goto("/post");
       const title = `Sunset paddle ${STAMP}`;
       await page.locator("#title").fill(title);
@@ -320,7 +346,61 @@ test.describe("the whole walk-through", () => {
       await expect(page.getByRole("heading", { level: 1 })).toContainText(title);
     });
 
+    await test.step("a guest books tonight at the price the desk set", async () => {
+      const context = await browser.newContext();
+      const guest = await context.newPage();
+      await signInAsDemo(guest, "Marta K.");
+
+      await guest.goto(`/hostel/${HOSTEL.slug}?in=${dayFromNow(0)}&out=${dayFromNow(1)}`);
+      await expect(guest.getByText(/Tonight only/i)).toBeVisible();
+      await guest.getByRole("button", { name: /^Book · / }).first().click();
+      await expect(guest).toHaveURL(/\/booking\//);
+      // One night, one bed, the desk's number — not the room's.
+      await expect(guest.getByText(/€15/).first()).toBeVisible();
+      await guest.getByRole("button", { name: /^Pay .*\(sandbox\)$/ }).click();
+      await expect(guest.getByText(/^Paid · /)).toBeVisible();
+      await context.close();
+    });
+
     // ----------------------------------------------------- gated, then paid
+    await test.step("the hostel brings the one next door, and earns two months of Pro", async () => {
+      // The neighbour has to be nobody: a signed-in applicant is refused.
+      await signOut(page);
+      await page.goto(`/partner?ref=${HOSTEL.slug}`);
+      await expect(page.getByText(new RegExp(`${HOSTEL.name} sent you`, "i"))).toBeVisible();
+
+      const neighbour = `Casa Vizinhanca ${STAMP}`;
+      await page.locator("#hostelName").fill(neighbour);
+      await page.locator("#city").selectOption(CITY.slug);
+      await page.locator("#area").fill("Centro");
+      await page
+        .locator("#description")
+        .fill("Six rooms over a bakery, two minutes from the beach and the bus.");
+      await page.locator("#beds").fill("18");
+      await page.locator("#price").fill("19");
+      await page.locator("#contactName").fill("Rui Neves");
+      await page.locator("#email").fill(`journey-neighbour-${STAMP}@away.test`);
+      await page.locator("#password").fill(HOSTEL.password);
+      await page.getByRole("button", { name: "Apply to join" }).click();
+      await expect(page.getByText(/Application received/i)).toBeVisible();
+
+      await signOut(page);
+      await signInAsDemo(page, "Away Ops");
+      await page.goto(`/admin/cities/${CITY.slug}`);
+      await page
+        .locator(".admin-row", { hasText: neighbour })
+        .getByRole("button", { name: "Approve" })
+        .click();
+      await expect(page).toHaveURL(/approved=/);
+
+      // The credit lands on the referrer, not on the neighbour.
+      await signOut(page);
+      await signInWithPassword(page, HOSTEL.email, HOSTEL.password);
+      await page.goto("/hostel-admin");
+      await expect(page.getByText(/2 months of Pro credited/i)).toBeVisible();
+      await expect(page.getByText(new RegExp(`/partner\\?ref=${HOSTEL.slug}`))).toBeVisible();
+    });
+
     await test.step("the reception screen is locked while the hostel is free", async () => {
       // The kit is free for everybody and links to the screen, which is not.
       await page.goto(`/hostel/${HOSTEL.slug}/kit`);
@@ -342,6 +422,9 @@ test.describe("the whole walk-through", () => {
       await expect(page).toHaveURL(/billing=activated/);
       await expect(page.getByText(/Pro is on/i)).toBeVisible();
       await expect(page.getByText(/renews \d{4}-\d{2}-\d{2}/i)).toBeVisible();
+      // One month of Pro plus the two the referral earned.
+      const creditedUntil = addMonths(addMonths(dayFromNow(0), 1), 2);
+      await expect(page.getByText(new RegExp(creditedUntil))).toBeVisible();
     });
 
     await test.step("Pro unlocks the screen, and the hostel can cancel in one click", async () => {
