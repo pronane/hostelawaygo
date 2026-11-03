@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { appUrl, sendMail } from "@/lib/mail";
+import { creditReferral } from "@/lib/billing";
 import { approveHostel, getHostelById, rejectHostel } from "@/lib/queries";
 
 function revalidateHostel(hostel: { city: string; slug: string }): void {
@@ -33,6 +34,13 @@ export async function approvePartnerAction(formData: FormData) {
 
   if (!await approveHostel(hostel.id)) redirect(`/admin/cities/${hostel.city}?error=partner`);
   revalidateHostel(hostel);
+
+  // Whoever brought them gets two months of Pro. Credit, not cash: it is the
+  // cheapest lever on the three-partner launch bar, and it costs the hostel that
+  // referred nothing but a message in the group chat.
+  if (hostel.referred_by) {
+    await creditReferral({ referrerId: hostel.referred_by, newHostelName: hostel.name });
+  }
 
   // Tell them, because "we'll email you" was the promise on the form. With no
   // provider configured this is a no-op rather than a failure.

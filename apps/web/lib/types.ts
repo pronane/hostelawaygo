@@ -41,6 +41,10 @@ export type Hostel = {
   plan_renews_on: string | null;
   plan_since: string | null;
   plan_cancelled: number;
+  /** The hostel that referred this one (schema 11), or null. */
+  referred_by: number | null;
+  /** Months of Pro earned by referring other hostels, spent at activation. */
+  credit_months: number;
 };
 
 export type Room = {

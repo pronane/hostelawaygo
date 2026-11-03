@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { EventCard } from "@/components/event-card";
 import { ShareButton } from "@/components/share-button";
 import { getCity, getCityEvents, getHostels, groupByDay } from "@/lib/queries";
+import { getTonightDeals } from "@/lib/deals";
+import { TonightStrip } from "@/components/tonight-strip";
 import type { City } from "@/lib/types";
 import { LAUNCH_BAR } from "@/lib/cities";
 import { addDays, formatDay, todayISO } from "@/lib/time";
@@ -59,6 +61,7 @@ export default async function PublicCityPage({ params }: Props) {
   const hostels = (await getHostels(city.slug)).filter((h) =>
     events.some((e) => e.hostel_id === h.id)
   );
+  const deals = await getTonightDeals(city.slug, today);
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -116,6 +119,8 @@ export default async function PublicCityPage({ params }: Props) {
           <ShareButton title={`What's on in ${city.name} this week`} />
         </div>
       </header>
+
+      <TonightStrip deals={deals} />
 
       {groups.length === 0 ? (
         <div className="empty">
@@ -196,6 +201,9 @@ async function OpeningCity({ city }: { city: City }) {
   const inCity = await getHostels(city.slug);
   const partners = inCity.filter((h) => h.status === "active").length;
   const pending = inCity.filter((h) => h.status === "pending").length;
+  // A bed free tonight is the strongest thing an opening city can say: it is a
+  // room you can sleep in today, in a city whose page otherwise says "soon".
+  const deals = await getTonightDeals(city.slug, today);
 
   return (
     <article>
@@ -218,6 +226,8 @@ async function OpeningCity({ city }: { city: City }) {
           </Link>
         </div>
       </header>
+
+      <TonightStrip deals={deals} />
 
       <div className="stat-row">
         <div className="stat">

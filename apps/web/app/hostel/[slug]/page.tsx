@@ -4,6 +4,7 @@ import { EventCard } from "@/components/event-card";
 import { createBookingAction } from "@/app/actions/booking";
 import { getCurrentUser } from "@/lib/auth";
 import { getCity, getHostelBySlug, getHostelPosts, roomsWithAvailability } from "@/lib/queries";
+import { getOpenDealForHostel } from "@/lib/deals";
 import { addDays, diffDays, formatDay, todayISO } from "@/lib/time";
 import { formatPrice, plural } from "@/lib/format";
 
@@ -41,12 +42,29 @@ export default async function HostelPage({ params, searchParams }: Props) {
   const events = (await getHostelPosts(hostel.id, 8, user?.id ?? null)).filter(
     (e) => e.starts_at.slice(0, 10) >= today
   );
+  // A price for tonight is only real if the dates are tonight's, so it is shown
+  // to the traveller exactly when a booking here would charge it.
+  const deal = checkIn === today ? await getOpenDealForHostel(hostel.id, today) : null;
 
   return (
     <>
       <Link href="/explore" className="back">
         ← All cities and hostels
       </Link>
+
+      {deal ? (
+        <div className="notice" role="status" style={{ marginBottom: 14, alignItems: "center" }}>
+          <span aria-hidden="true">🛏</span>
+          <span style={{ flex: 1 }}>
+            <b>
+              Tonight only: {formatPrice(deal.price_cents)} a bed, {plural(deal.beds, "bed")} left.
+            </b>{" "}
+            Good until {deal.until_time}
+            {deal.note ? ` · ${deal.note}` : ""}. The desk posted this — book below and the first night is
+            charged at that price.
+          </span>
+        </div>
+      ) : null}
 
       <header className="hostel-head">
         <div>

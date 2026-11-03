@@ -25,7 +25,7 @@ an enticement.
 
 Ranked by how fast it gets a poster on a wall, not by how clever it is.
 
-### 1.1 Fill the quiet night *(hostels · M · free)* — the strongest one
+### 1.1 Fill the quiet night *(hostels · M · free)* — **shipped**
 A hostel's worst number is beds empty tonight. `/post` already publishes an
 event in about a minute; the missing half is publishing **a bed**: "2 beds free
 tonight, €18, walk-in" appears in the HERE feed with a "tonight" flag, and the
@@ -37,16 +37,30 @@ measure *tomorrow* — the weekly receipt shows beds sold from Away, not scans.
 It also fixes the thinnest part of the traveller feed (a Tuesday in November is
 empty), which is what makes the second visit happen.
 
+Shipped: a second form on `/post` — beds left, price, good-until, one line.
+It shows in the city feed (including the *opening* city page, where a bed is the
+strongest thing the city can say) and on the hostel page as "Tonight only". A
+booking that checks in today is charged that price for the **first night only**;
+every night after it is the room's own price. One open deal per hostel per day,
+replaced rather than stacked, gone at midnight.
+
 Signal: beds posted per week per hostel; bookings from a tonight-post. Kill it
 if fewer than 1 in 5 partner hostels use it in a month more than once.
 
-### 1.2 Bring a neighbour *(hostels · S · free, plus Pro credit)*
+### 1.2 Bring a neighbour *(hostels · S · free, plus Pro credit)* — **shipped**
 Every hostel in a city knows the other hostels — the desk sends guests to them
 when they are full. Give each partner a referral link
 (`/partner?from=<slug>`): when the hostel they referred gets approved, the
 referrer gets **two months of Pro credited automatically** (the billing code
 already tracks `billing_events`, so this is one row and a `plan_credit_months`
 field, not a payments project).
+
+Shipped: `/partner?ref=<slug>` on a hostel's portal shows "X sent you", the
+application carries the referrer, and approval credits the referrer **two months
+of Pro** (`hostels.credit_months` + a `credited` row in `billing_events`). The
+credit is spent when Pro starts: the renewal date moves, the price does not. A
+signed-in applicant is still refused, and a fake `?ref=` earns nothing. It is
+credit, never cash, and it is not a cut of the neighbour's beds.
 
 Why it works: it turns the launch bar (3 partners per city) from our grind into
 their favour, and hostels trust a peer more than a landing page.
@@ -226,11 +240,14 @@ message to the desk instead of a phone call at midnight.
 | ~~1~~ | ~~"Who else is arriving" on the event page (2.1)~~ | **Shipped** — it makes the promise visible, with data already in the database | S | Join rate per event view |
 | ~~2~~ | ~~Kit in five languages (1.3)~~ | **Shipped** (seven) — removes the last excuse for a poster not going up | S | Kit downloads per partner |
 | ~~3~~ | ~~Group nights (3.1)~~ | **Shipped** — the only thing here that grows attendance without spending money, and it gives the paid screen a job | M | Groups per 100 events |
-| 4 | Fill the quiet night (1.1) | The one pitch a hostel can act on today and measure tomorrow | M | Beds posted per week |
+| ~~4~~ | ~~Fill the quiet night (1.1)~~ | **Shipped** — the one pitch a hostel can act on today and measure tomorrow | M | Beds posted per week |
+| 5 | A Social Score from behaviour (see `docs/competition.md` §4) | The filter every solo traveller wants, and the one no review site can fake | S | Explore → hostel page click-through |
+| 6 | Open chats a week before arrival | The window where intent is highest — Hostelworld's lesson, applied to data already on file | S | Join rate per arrival |
 
-**Bring a neighbour** (1.2) is the cheapest lever on the launch bar and should
-ride along with whichever of these touches billing first — it is one referral
-column on `/partner`, a credit on `billing_events`, and nothing else.
+Both "bring a neighbour" (1.2) and "fill the quiet night" (1.1) are now in
+`/hostel-admin` and `/post`. The next round — social score, one-line plans, the
+traveller pass — is argued from the competitors' own numbers in
+[`docs/competition.md`](competition.md).
 
 ---
 

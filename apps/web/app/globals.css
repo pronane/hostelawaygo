@@ -822,3 +822,22 @@ body:has(.board) main { padding: 0; max-width: none; margin: 0; min-width: 0; }
 .plan-list { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 9px; }
 .plan-list li { font-size: 12.5px; line-height: 1.5; color: #4a403a; display: flex; gap: 8px; }
 .plan-list .tick { flex: 0 0 auto; }
+
+/* Beds free tonight: the one line in the feed that can be acted on today. */
+.dealbar {
+  border: 1px solid #e7d3bd; background: linear-gradient(180deg, #fff8ee, #fff);
+  border-radius: 18px; padding: 14px 16px; margin: 18px 0 4px;
+}
+.dealbar-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.dealbar-head b { font-size: 13px; font-weight: 800; }
+.dealbar-sub { font-size: 10.5px; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+.dealbar-list { display: grid; gap: 6px; margin-top: 10px; }
+.dealbar-row {
+  display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit;
+  background: #fff; border: 1px solid var(--line); border-radius: 13px; padding: 9px 11px;
+}
+.dealbar-row:hover { border-color: #d9c9ba; }
+.dealbar-price { font-weight: 800; font-size: 14px; color: #a45e00; min-width: 54px; }
+.dealbar-name { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 700; display: grid; }
+.dealbar-area { display: block; font-weight: 500; font-size: 10.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dealbar-go { color: var(--muted); font-size: 13px; }

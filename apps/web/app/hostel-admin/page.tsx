@@ -14,6 +14,7 @@ import {
 } from "@/lib/queries";
 import { formatDay, formatSqlTime, timeOf } from "@/lib/time";
 import { formatPrice, plural } from "@/lib/format";
+import { appUrl } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Hostel portal" };
@@ -152,6 +153,16 @@ export default async function HostelAdminPage({
             )}
           </p>
 
+          {hostel.credit_months > 0 ? (
+            <p style={{ margin: "0 0 12px", fontSize: 12.5, color: "#7b6e64", lineHeight: 1.6 }}>
+              <b>
+                {hostel.credit_months} {hostel.credit_months === 1 ? "month" : "months"} of Pro credited
+              </b>{" "}
+              from a hostel you brought. It is added to your first renewal the moment Pro starts — the
+              price does not change, the end date moves.
+            </p>
+          ) : null}
+
           {pro ? (
             <>
               <p style={{ margin: "0 0 12px", fontSize: 12.5, color: "#7b6e64", lineHeight: 1.6 }}>
@@ -188,6 +199,30 @@ export default async function HostelAdminPage({
               </div>
             </>
           )}
+        </div>
+
+        <div className="panel" style={{ marginTop: 12 }}>
+          <p style={{ margin: "0 0 8px", fontSize: 13.5, lineHeight: 1.6 }}>
+            <b>Bring the hostel two streets over.</b>
+          </p>
+          <p style={{ margin: "0 0 10px", fontSize: 12.5, color: "#7b6e64", lineHeight: 1.6 }}>
+            When they apply through your link and go live, you get two months of Pro credited. Not a
+            commission, not a cut of their beds — the same two months you would have paid for.
+          </p>
+          <code
+            style={{
+              display: "block",
+              background: "#faf5ef",
+              border: "1px solid var(--line)",
+              borderRadius: 11,
+              padding: "9px 11px",
+              fontSize: 12,
+              overflowX: "auto",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {`${appUrl()}/partner?ref=${hostel.slug}`}
+          </code>
         </div>
 
         {invoices.length > 0 ? (

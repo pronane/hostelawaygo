@@ -4,6 +4,7 @@ import type { Source, WindowStatus } from "./constants";
 import { launchGates, launchReadiness, recordComplete, type CitySupply, type Gate } from "./cities";
 import { LAUNCH_BAR } from "./cities";
 import { addDays, dateOf, diffDays, todayISO } from "./time";
+import { dealPriceForTonight } from "./deals";
 import { CITY_CENTRE, haversineMeters, walkMinutes } from "./geo";
 import { completePayment, getPaymentForBooking, openPayment, refundPayment } from "./payments";
 import type {
@@ -746,7 +747,13 @@ const slugify = (value: string) =>
  * who has no hostel or a hostel nobody can log into.
  */
 export async function createPartnerApplication(
-  input: HostelApplicationInput & { contactName: string; email: string; passwordHash: string }
+  input: HostelApplicationInput & {
+    contactName: string;
+    email: string;
+    passwordHash: string;
+    /** The hostel that sent them, if the application came from a referral link. */
+    referredBy?: number | null;
+  }
 ): Promise<{ ok: true; hostelId: number; travellerId: number } | { ok: false; error: string }> {
   const db = getDb();
 
@@ -774,9 +781,9 @@ export async function createPartnerApplication(
       const hostel = await db
         .prepare(
           `INSERT INTO hostels (slug, city, name, area, description, rating, price_from_cents,
-             lat, lng, status, contact_email, applied_at, note, beds)
+             lat, lng, status, contact_email, applied_at, note, beds, referred_by)
            VALUES (@slug, @city, @name, @area, @description, 0, @price, @lat, @lng, 'pending',
-             @email, datetime('now'), @note, @beds)`
+             @email, datetime('now'), @note, @beds, @referredBy)`
         )
         .run({
           slug,
@@ -790,6 +797,7 @@ export async function createPartnerApplication(
           email: input.email,
           note: input.note,
           beds: input.beds,
+          referredBy: input.referredBy ?? null,
         });
 
       const person = await db
@@ -1067,7 +1075,13 @@ export async function createBooking(
         return { ok: false as const, error: "Someone just took the last bed. Try different dates." };
       }
 
-      const total = room.price_cents * nights * input.guests;
+      // A deal is a price for tonight: the first night only, and only when the
+      // bed is for tonight. Every night after it is the room's own price, so a
+      // discounted first night never quietly becomes a discounted week.
+      const tonightPrice =
+        input.checkIn === todayISO() ? await dealPriceForTonight(room.hostel_id) : null;
+      const firstNight = tonightPrice === null ? room.price_cents : Math.min(tonightPrice, room.price_cents);
+      const total = (firstNight + room.price_cents * (nights - 1)) * input.guests;
       const code = bookingCode();
 
       const booking = await db

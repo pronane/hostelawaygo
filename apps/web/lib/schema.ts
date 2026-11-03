@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = "10";
+export const SCHEMA_VERSION = "11";
 
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS meta (
@@ -45,7 +45,11 @@ CREATE TABLE IF NOT EXISTS hostels (
   plan_interval TEXT NOT NULL DEFAULT 'month',
   plan_renews_on TEXT,
   plan_since TEXT,
-  plan_cancelled INTEGER NOT NULL DEFAULT 0
+  plan_cancelled INTEGER NOT NULL DEFAULT 0,
+  -- The hostel that brought this one (a referral off /partner?ref=), and the
+  -- months of Pro it earned. Credit is applied when they go on Pro, not as cash.
+  referred_by INTEGER REFERENCES hostels(id) ON DELETE SET NULL,
+  credit_months INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS travellers (
@@ -248,6 +252,25 @@ CREATE TABLE IF NOT EXISTS arrivals (
 );
 CREATE INDEX IF NOT EXISTS idx_arrivals_hostel ON arrivals(hostel_id, day);
 
+-- Tonight deals. A hostel's worst number is beds empty tonight, so the desk can
+-- post one from the same screen it posts events: how many beds, at what price,
+-- until when. It shows in the city feed for that day only and prices the first
+-- night of a booking made for today. Nothing is stored about the guest.
+CREATE TABLE IF NOT EXISTS tonight_deals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  hostel_id INTEGER NOT NULL REFERENCES hostels(id) ON DELETE CASCADE,
+  day TEXT NOT NULL,
+  beds INTEGER NOT NULL DEFAULT 1,
+  price_cents INTEGER NOT NULL,
+  until_time TEXT NOT NULL DEFAULT '23:00',
+  note TEXT,
+  status TEXT NOT NULL DEFAULT 'open',
+  created_by INTEGER REFERENCES travellers(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_tonight_deals_day ON tonight_deals(day, status);
+CREATE INDEX IF NOT EXISTS idx_tonight_deals_hostel ON tonight_deals(hostel_id, day);
+
 -- Group nights. A group is one link and a list of first names: the organiser
 -- makes it from the event, the rest of the hostel taps it, and nobody has to
 -- make an account to say yes. The reception screen wants this more than the
@@ -351,6 +374,28 @@ DROP TABLE IF EXISTS meta;
  * duplicate-column error is caught and treated as success.
  */
 export const MIGRATIONS: { to: string; hint: string; statements: string[] }[] = [
+  {
+    to: "11",
+    hint: "tonight deals + referral credit",
+    statements: [
+      `CREATE TABLE IF NOT EXISTS tonight_deals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        hostel_id INTEGER NOT NULL REFERENCES hostels(id) ON DELETE CASCADE,
+        day TEXT NOT NULL,
+        beds INTEGER NOT NULL DEFAULT 1,
+        price_cents INTEGER NOT NULL,
+        until_time TEXT NOT NULL DEFAULT '23:00',
+        note TEXT,
+        status TEXT NOT NULL DEFAULT 'open',
+        created_by INTEGER REFERENCES travellers(id) ON DELETE SET NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      "CREATE INDEX IF NOT EXISTS idx_tonight_deals_day ON tonight_deals(day, status)",
+      "CREATE INDEX IF NOT EXISTS idx_tonight_deals_hostel ON tonight_deals(hostel_id, day)",
+      "ALTER TABLE hostels ADD COLUMN referred_by INTEGER REFERENCES hostels(id)",
+      "ALTER TABLE hostels ADD COLUMN credit_months INTEGER NOT NULL DEFAULT 0",
+    ],
+  },
   {
     to: "10",
     hint: "group nights (event_groups + members)",

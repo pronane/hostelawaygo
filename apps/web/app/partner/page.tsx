@@ -3,7 +3,7 @@ import { applyPartnerAction } from "@/app/actions/partner";
 import { logoutAction } from "@/app/actions/auth";
 import { getCurrentUser } from "@/lib/auth";
 import { CITY_STATUS, LAUNCH_BAR } from "@/lib/cities";
-import { getAllHostels, getCities, getCity } from "@/lib/queries";
+import { getAllHostels, getCities, getCity, getHostelBySlug } from "@/lib/queries";
 import { formatDay } from "@/lib/time";
 import { plural } from "@/lib/format";
 
@@ -46,9 +46,10 @@ export default async function PartnerPage({
     error?: string;
     newCity?: string;
     city?: string;
+    ref?: string;
   }>;
 }) {
-  const { submitted, pending, error, newCity, city } = await searchParams;
+  const { submitted, pending, error, newCity, city, ref } = await searchParams;
   const user = await getCurrentUser();
   const cities = await getCities();
   const myHostel = user?.hostel_id
@@ -56,6 +57,9 @@ export default async function PartnerPage({
     : null;
 
   const openedCity = newCity ? await getCity(newCity) : undefined;
+  // The hostel that sent them here, from /partner?ref=<slug>.
+  const referrer = ref ? await getHostelBySlug(ref) : null;
+  const referredBy = referrer && referrer.status === "active" ? referrer : null;
 
   const errorMessage = error
     ? ERRORS[error] ?? (error.length > 40 ? decodeURIComponent(error) : "Something wasn't right. Try again.")
@@ -204,7 +208,15 @@ export default async function PartnerPage({
               <span>goes to a human, not a queue</span>
             </div>
 
+            {referredBy ? (
+              <Notice tone="ok">
+                <b>{referredBy.name} sent you.</b> They get two months of Away Pro if you go live — it
+                costs you nothing, and it is the reason they asked.
+              </Notice>
+            ) : null}
+
             <form action={applyPartnerAction} className="form-wrap">
+              {referredBy ? <input type="hidden" name="ref" value={referredBy.slug} /> : null}
               <div className="twocol">
                 <div className="field">
                   <label htmlFor="hostelName">Hostel name</label>
