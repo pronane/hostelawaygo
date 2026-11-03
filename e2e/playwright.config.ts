@@ -58,6 +58,9 @@ export default defineConfig({
         AWAY_DB_PATH: "../../.away/e2e-away.db",
         DEMO_LOGIN: "1",
         OAUTH_MOCK: "1",
+        // No mail provider here, so the confirm-your-email link has to be
+        // clickable from the page — otherwise a fresh signup can never chat.
+        VERIFY_DEV_LINK: "1",
         // `next start` is a production build; the stand-in provider refuses to
         // exist in production unless this is explicit.
         OAUTH_MOCK_ALLOW_PROD: "1",

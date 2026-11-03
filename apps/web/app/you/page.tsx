@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { logoutAction, setPasswordAction } from "@/app/actions/auth";
 import { resendVerificationAction } from "@/app/actions/verify";
+import { devLinkAllowed } from "@/lib/verify";
 import { getSafeNights } from "@/lib/safe";
 import { getCurrentUser } from "@/lib/auth";
 import { PROVIDER_LABEL, linkedProviders } from "@/lib/oauth";
@@ -97,7 +98,7 @@ export default async function YouPage({
           <span aria-hidden="true">✉️</span>
           <span style={{ flex: 1 }}>
             <b>Confirm {user.email}</b> to chat in events.{" "}
-            {verify === "dev" && link && process.env.NODE_ENV !== "production" ? (
+            {verify === "dev" && link && devLinkAllowed() ? (
               <>
                 No email provider is set up, so here&apos;s the link:{" "}
                 <a href={link} style={{ textDecoration: "underline" }}>confirm my email</a>
