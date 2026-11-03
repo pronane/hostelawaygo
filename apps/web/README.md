@@ -128,6 +128,8 @@ Everything else — state, PKCE, nonce, JWKS lookup, signature check, linking �
 
 The three growth problems — hostel buy-in, traveller pull, and opening a new city the same way every time — are written up in [`docs/growth-playbook.md`](../../docs/growth-playbook.md), next to the routes that make each one measurable (`/hostel/[slug]/kit`, `/c/[slug]`, `/admin/cities`).
 
+What it costs to run and what it has to earn is [`docs/monetisation.md`](../../docs/monetisation.md), generated from `node scripts/cost-model.mjs`: at 1k, 2k, 5k and 10k monthly actives, on Vercel, Render, Hetzner and Cloudflare, with the price list it would need to charge hostels. The short version: the whole hosting bill at 10,000 users is €32/month, and two paying hostels cover it.
+
 ## Safety and trust
 
 - **Share my night** (`/safe`, linked from every event page): tell a friend where you're going and when you'll be back. They get a link showing *out*, *home safe at 01:12*, or *overdue by 25 minutes* with advice to call you, then the hostel or 112. "Running late" adds an hour. The friend sees your first name and plan, nothing else.
