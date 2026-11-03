@@ -270,6 +270,7 @@ set — never as a public web service.
 
 - [ ] `AWAY_BOOTSTRAP_*` set, and you can sign in as that admin
 - [ ] `DEMO_LOGIN` unset or `0`, and `AWAY_DEMO_ACCOUNTS` unset or `0`
+- [ ] `VERIFY_DEV_LINK` unset — it prints the confirm-your-email link on the page, which is for the e2e suite and nothing else
       (both are off by default in production — this is the double-check)
 - [ ] `APP_URL` is the `https://` URL
 - [ ] `node scripts/verify-deploy.mjs https://…` passes, with no demo warning

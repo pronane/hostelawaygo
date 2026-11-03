@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { mailEnabled } from "@/lib/mail";
 import { sendVerification } from "@/lib/verify";
 
 export async function resendVerificationAction() {
@@ -12,12 +13,16 @@ export async function resendVerificationAction() {
   if (user.email_verified || !user.email) redirect("/you");
 
   // One email a minute is plenty; stops the button being used to spam an inbox.
-  const recent = await getDb()
-    .prepare(
-      "SELECT 1 AS x FROM email_tokens WHERE traveller_id = ? AND expires_at > ? AND used_at IS NULL"
-    )
-    .get<{ x: number }>(user.id, new Date(Date.now() + (48 * 60 - 1) * 60_000).toISOString());
-  if (recent) redirect("/you?verify=wait");
+  // With no mail provider there is no inbox to protect — the link is shown on
+  // the page instead, so asking for a fresh one costs nothing.
+  if (mailEnabled()) {
+    const recent = await getDb()
+      .prepare(
+        "SELECT 1 AS x FROM email_tokens WHERE traveller_id = ? AND expires_at > ? AND used_at IS NULL"
+      )
+      .get<{ x: number }>(user.id, new Date(Date.now() + (48 * 60 - 1) * 60_000).toISOString());
+    if (recent) redirect("/you?verify=wait");
+  }
 
   const h = await headers();
   const origin = h.get("origin") ?? undefined;

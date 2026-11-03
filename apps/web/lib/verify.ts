@@ -6,6 +6,11 @@ import { newToken } from "./password";
 const TTL_HOURS = 48;
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 
+/** True when the verification link may be shown on the page instead of emailed. */
+export function devLinkAllowed(): boolean {
+  return process.env.NODE_ENV !== "production" || process.env.VERIFY_DEV_LINK === "1";
+}
+
 /**
  * Issues a fresh verification link (older unused ones stop working) and emails
  * it. Returns the link only when no email provider is configured outside
@@ -32,7 +37,11 @@ export async function sendVerification(
     "Confirm your email for Away",
     `Tap to confirm your email and unlock event chats:\n\n${link}\n\nThe link works for ${TTL_HOURS} hours. If you didn't sign up for Away, ignore this email.`
   );
-  const devLink = !sent && process.env.NODE_ENV !== "production" ? link : null;
+  // Local/dev builds show the link instead of emailing it. A production build
+  // can opt in too, but only explicitly: the e2e suite runs `next start` and has
+  // no mail provider, and a real signup that can never be confirmed is not a
+  // journey worth testing. Never set this on a deployment people can reach.
+  const devLink = !sent && devLinkAllowed() ? link : null;
   return { sent, devLink };
 }
 
