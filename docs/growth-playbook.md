@@ -280,7 +280,7 @@ That asymmetry is the whole strategy: **the marginal city is a sales problem, no
 
 Honest list, in the order it should be built:
 
-- **Partner billing.** Pro plans are described, not implemented.
+- **Partner billing.** Pro plans are described, not implemented. *(Shipped — see §6 of `docs/monetisation.md` and `/pricing`.)*
 - **Application triage beyond approve/decline.** No notes, no "come back in March" state, no automated reply — ops just approves or declines in the city console.
 - **Digest segmentation.** Every due traveller gets the same shape of email; there's no A/B on subject lines, and no re-send when a trip's calendar fills up after the first send.
 - **Attribution at sign-up.** A visitor who signs up from a hostel QR should keep that origin into next month's cohort, not just the arrival row.
@@ -289,5 +289,7 @@ Honest list, in the order it should be built:
 - **Localisation.** The interface is English; Lisbon and Kraków are not.
 
 ---
+
+For the next round of product enticements — fill the quiet night, referral credit, group nights, arrival cohorts — see [`docs/enticements.md`](enticements.md).
 
 *The product surfaces referenced here: `/c/[slug]`, `/stay/[slug]`, `/hostel/[slug]/kit`, `/hostel-admin`, `/admin/cities`, `/admin/cities/[slug]`, `/admin/ingest`. The bar lives in `lib/cities.ts`; the funnel lives in `arrivals`.*
