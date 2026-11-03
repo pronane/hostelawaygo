@@ -69,6 +69,25 @@ later does nothing; use `npm run admin:create` (see below).
 - **Scaling.** You can't scale out with a disk; you get one instance. Fine at
   Lisbon scale, and the reason to move to Postgres later is concurrency, not size.
 
+## Subscriptions
+
+Away Pro is €19/month per hostel. Nothing needs configuring to run it: without
+`STRIPE_SECRET_KEY` the provider is `sandbox`, `/billing/sandbox/<reference>`
+stands in for the hosted checkout, and Pro is switched on for real in the
+database with a `provider = 'sandbox'` row in `billing_events`.
+
+For real money:
+
+1. `STRIPE_SECRET_KEY=sk_live_…` in the deployment's environment.
+2. Point Stripe's webhook at `https://<your-domain>/api/payments/webhook`, and set
+   `PAYMENT_WEBHOOK_SECRET` to the signing secret it gives you.
+3. Confirm `/hostel-admin` → **Your plan** → *Turn on Pro* now leaves the site for
+   Stripe Checkout, and that Pro appears only after `checkout.session.completed`
+   arrives signed.
+
+The same endpoint already handles booking payments, so both products share one
+signature check and one idempotency story.
+
 ## Turso
 
 Turso is SQLite as a hosted service: same SQL, same schema, same queries, but

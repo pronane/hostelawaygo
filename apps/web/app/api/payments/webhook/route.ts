@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { activateSubscription, cancelSubscription } from "@/lib/billing";
+import { getDb } from "@/lib/db";
 import {
   applyWebhookEvent,
   completePaymentForBookingCode,
@@ -10,7 +12,14 @@ export const dynamic = "force-dynamic";
 
 type StripeEvent = {
   type: string;
-  data?: { object?: { client_reference_id?: string | null } };
+  data?: {
+    object?: {
+      client_reference_id?: string | null;
+      id?: string | null;
+      subscription?: string | null;
+      metadata?: { hostel_id?: string } | null;
+    };
+  };
 };
 
 type PaymentEvent = WebhookEvent & { id?: string };
@@ -43,10 +52,37 @@ export async function POST(request: Request) {
 
   if ("type" in payload && payload.type === "checkout.session.completed") {
     const code = payload.data?.object?.client_reference_id ?? null;
+
+    // One endpoint, two products: a booking reference looks like `pay_…`, a
+    // subscription like `sub_…`. Pro is only ever switched on here — never by
+    // the browser coming back to a success page.
+    if (code?.startsWith("sub_")) {
+      const result = await activateSubscription(code, "month", "stripe");
+      return NextResponse.json(result, { status: result.ok ? 200 : 404 });
+    }
+
     const payment = code ? await completePaymentForBookingCode(code) : null;
     return payment
       ? NextResponse.json({ ok: true, note: `paid ${payment.reference}` })
       : NextResponse.json({ ok: false, note: "unknown booking" }, { status: 404 });
+  }
+
+  if ("type" in payload && payload.type === "customer.subscription.deleted") {
+    const object = payload.data?.object;
+    const hostelId = Number(object?.metadata?.hostel_id ?? 0);
+    const reference = object?.client_reference_id ?? null;
+    const hostel =
+      hostelId ||
+      (reference
+        ? (
+            await getDb()
+              .prepare("SELECT hostel_id FROM billing_events WHERE reference = ? ORDER BY id DESC LIMIT 1")
+              .get<{ hostel_id: number }>(reference)
+          )?.hostel_id ?? 0
+        : 0);
+    if (!hostel) return NextResponse.json({ ok: false, note: "unknown subscription" }, { status: 404 });
+    const result = await cancelSubscription(hostel, "Stripe");
+    return NextResponse.json(result);
   }
 
   const event = payload as PaymentEvent;

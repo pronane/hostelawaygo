@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { cancelEventAction, clearReportAction, hideMessageAction } from "@/app/actions/staff";
+import { cancelProAction, startProAction } from "@/app/actions/billing";
+import { billingHistory } from "@/lib/billing";
+import { isPro, planLabel, PRICE_CENTS } from "@/lib/plans";
 import { requireActiveStaff } from "@/lib/auth";
 import {
   getBookingsForHostel,
@@ -18,9 +21,16 @@ export const metadata = { title: "Hostel portal" };
 export default async function HostelAdminPage({
   searchParams,
 }: {
-  searchParams: Promise<{ cancelled?: string; hidden?: string; error?: string }>;
+  searchParams: Promise<{
+    cancelled?: string;
+    hidden?: string;
+    error?: string;
+    billing?: string;
+    note?: string;
+    why?: string;
+  }>;
 }) {
-  const { cancelled, hidden, error } = await searchParams;
+  const { cancelled, hidden, error, billing, note, why } = await searchParams;
   const user = await requireActiveStaff("/hostel-admin");
 
   const hostels = await getHostels();
@@ -32,6 +42,8 @@ export default async function HostelAdminPage({
   const reported = await getReportedMessages(hostel.id);
   const partner = await getPartnerStats(hostel.id);
   const scanToJoin = partner.opens > 0 ? Math.round((partner.joins / partner.opens) * 100) : 0;
+  const pro = isPro(hostel);
+  const invoices = await billingHistory(hostel.id, 6);
 
   return (
     <>
@@ -42,6 +54,31 @@ export default async function HostelAdminPage({
           Who&apos;s coming tonight, what you&apos;ve got on, and what people are saying about it.
         </p>
       </header>
+
+      {billing === "activated" ? (
+        <div className="notice" role="status">
+          <span aria-hidden="true">✓</span>
+          <span>
+            <b>Pro is on.</b> The reception screen works now, and the first weekly receipt lands on
+            Sunday. Cancel any time from the plan below — no email to anybody.
+          </span>
+        </div>
+      ) : null}
+      {billing === "cancelled" ? (
+        <div className="notice" role="status">
+          <span aria-hidden="true">✓</span>
+          <span>
+            <b>Cancelled.</b> {note || "Pro keeps running until the date you already paid for."} Nothing
+            else changes: you stay listed and you keep posting.
+          </span>
+        </div>
+      ) : null}
+      {billing === "error" ? (
+        <div className="notice warn" role="alert">
+          <span aria-hidden="true">⚠️</span>
+          <span>{why || "The payment provider did not answer. Try again in a minute."}</span>
+        </div>
+      ) : null}
 
       {cancelled ? (
         <div className="notice" role="status">
@@ -93,6 +130,88 @@ export default async function HostelAdminPage({
           See the guest view
         </Link>
       </div>
+
+      <section style={{ marginTop: 30 }}>
+        <div className="day">
+          <h2>Your plan</h2>
+          <span>{pro ? "the receipt and the screen" : "free, and it stays free"}</span>
+        </div>
+
+        <div className="panel">
+          <p style={{ margin: "0 0 8px", fontSize: 13.5, lineHeight: 1.6 }}>
+            <b>{planLabel(hostel)}</b>
+            {pro ? (
+              <>
+                {" "}
+                · renews {hostel.plan_renews_on ?? "monthly"}
+                {hostel.plan_cancelled ? " · cancelled, keeps Pro until then" : ""}
+                {" "}· {formatPrice(PRICE_CENTS.month)} a month
+              </>
+            ) : (
+              <> · listing, posting, the QR kit and the chat are free forever.</>
+            )}
+          </p>
+
+          {pro ? (
+            <>
+              <p style={{ margin: "0 0 12px", fontSize: 12.5, color: "#7b6e64", lineHeight: 1.6 }}>
+                Pro gives you the <Link href={`/hostel/${hostel.slug}/board`} style={{ textDecoration: "underline" }}>reception screen</Link>{" "}
+                and the weekly receipt — what you posted, who said they were coming, and what the
+                poster did. One click to stop.
+              </p>
+              <form action={cancelProAction}>
+                <button type="submit" className="btn small">
+                  Cancel Pro
+                </button>
+              </form>
+            </>
+          ) : (
+            <>
+              <p style={{ margin: "0 0 12px", fontSize: 12.5, color: "#7b6e64", lineHeight: 1.6 }}>
+                Pro is {formatPrice(PRICE_CENTS.month)} a month (or {formatPrice(PRICE_CENTS.year)} a
+                year): the reception screen behind your desk, and a receipt every week showing what
+                your nights and your QR actually did. No commission, no card to stay listed.
+              </p>
+              <div className="cta-row" style={{ marginTop: 0 }}>
+                <form action={startProAction}>
+                  <input type="hidden" name="interval" value="month" />
+                  <button type="submit" className="btn primary" style={{ flex: "0 0 auto" }}>
+                    Turn on Pro — {formatPrice(PRICE_CENTS.month)}/month
+                  </button>
+                </form>
+                <form action={startProAction}>
+                  <input type="hidden" name="interval" value="year" />
+                  <button type="submit" className="btn">
+                    A year — {formatPrice(PRICE_CENTS.year)}
+                  </button>
+                </form>
+              </div>
+            </>
+          )}
+        </div>
+
+        {invoices.length > 0 ? (
+          <div className="admin-list" style={{ marginTop: 10 }}>
+            {invoices.map((row) => (
+              <div key={row.id} className="admin-row">
+                <div className="admin-main">
+                  <b>
+                    {row.kind} <span style={{ fontWeight: 400, color: "#8b7d72" }}>· {row.provider}</span>
+                  </b>
+                  <span>
+                    {formatSqlTime(row.created_at)} · {row.note || "—"}
+                  </span>
+                </div>
+                <div className="admin-actions">
+                  <span className={`status ${row.kind === "activated" ? "ok" : row.kind === "cancelled" || row.kind === "expired" ? "warn" : "muted"}`}>
+                    {row.amount_cents ? formatPrice(row.amount_cents) : "—"}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </section>
 
       <section style={{ marginTop: 30 }}>
         <div className="day">

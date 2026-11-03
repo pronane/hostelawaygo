@@ -1,4 +1,4 @@
-import { DROP_ALL, SCHEMA, SCHEMA_VERSION } from "./schema";
+import { DROP_ALL, MIGRATIONS, SCHEMA, SCHEMA_VERSION } from "./schema";
 import { seed } from "./seed";
 import type { Db, Param, Statement } from "./sql";
 import { LocalDb } from "./sqlite";
@@ -31,6 +31,37 @@ async function foreignTables(db: Db): Promise<string[]> {
   }
 }
 
+/**
+ * Applies the migration steps between `from` and the current version.
+ *
+ * Returns false when this code has no path from that version (an old demo
+ * database, a rollback) — the caller rebuilds. Duplicate-column errors are the
+ * expected shape of "fresh install already has it", so they are not failures.
+ */
+async function migrate(db: Db, from: string): Promise<boolean> {
+  const steps = MIGRATIONS.filter((step) => Number(step.to) > Number(from) && Number(step.to) <= Number(SCHEMA_VERSION));
+  if (steps.length === 0) return false;
+
+  for (const step of steps) {
+    for (const statement of step.statements) {
+      try {
+        await db.exec(statement);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (/duplicate column name/i.test(message)) continue;
+        console.warn(`[db] migration to ${step.to} failed (${step.hint}): ${message} — rebuilding`);
+        return false;
+      }
+    }
+    console.log(`[db] migrated to schema ${step.to} (${step.hint})`);
+  }
+
+  await db
+    .prepare("INSERT INTO meta (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+    .run(SCHEMA_VERSION);
+  return true;
+}
+
 async function open(): Promise<Db> {
   const db: Db =
     storage.kind === "turso" ? new TursoDb(storage.path, storage.token) : new LocalDb(storage.path);
@@ -46,7 +77,10 @@ async function open(): Promise<Db> {
     await db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get<{ value: string }>()
   )?.value;
 
-  if (version !== SCHEMA_VERSION) {
+  if (version === undefined) {
+    // Nothing has ever been seeded here.
+    await seed(db);
+  } else if (version !== SCHEMA_VERSION) {
     // Before dropping anything: are we even in the database we think we are?
     // Pointing TURSO_DATABASE_URL at another app's database is an easy mistake
     // and a silent one — this app would happily add its tables next to theirs.
@@ -61,12 +95,16 @@ async function open(): Promise<Db> {
       );
     }
 
-    // Demo data, not production migrations: rebuild rather than carry old shapes.
-    // seed() writes the version row last, so a seed that dies halfway is rebuilt
-    // on the next start instead of being mistaken for a finished one.
-    await db.exec(DROP_ALL);
-    await db.exec(SCHEMA);
-    await seed(db);
+    // Walk the database forward if we know how. A rebuild throws away real
+    // hostels, applications and stays; it is the fallback, not the default.
+    const upgraded = await migrate(db, version);
+    if (!upgraded) {
+      // seed() writes the version row last, so a seed that dies halfway is
+      // rebuilt on the next start instead of being mistaken for a finished one.
+      await db.exec(DROP_ALL);
+      await db.exec(SCHEMA);
+      await seed(db);
+    }
   }
 
   return db;

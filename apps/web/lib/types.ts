@@ -35,6 +35,12 @@ export type Hostel = {
   applied_at: string | null;
   note: string;
   beds: number;
+  /** 'free' | 'pro' — see lib/plans.ts. Read through isPro(), never directly. */
+  plan: string;
+  plan_interval: string;
+  plan_renews_on: string | null;
+  plan_since: string | null;
+  plan_cancelled: number;
 };
 
 export type Room = {
