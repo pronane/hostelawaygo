@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = "9";
+export const SCHEMA_VERSION = "10";
 
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS meta (
@@ -248,6 +248,31 @@ CREATE TABLE IF NOT EXISTS arrivals (
 );
 CREATE INDEX IF NOT EXISTS idx_arrivals_hostel ON arrivals(hostel_id, day);
 
+-- Group nights. A group is one link and a list of first names: the organiser
+-- makes it from the event, the rest of the hostel taps it, and nobody has to
+-- make an account to say yes. The reception screen wants this more than the
+-- traveller does — "a group of five at 19:30" is how a bar decides how much
+-- curry to cook. Named event_groups because GROUPS is a window-frame keyword.
+CREATE TABLE IF NOT EXISTS event_groups (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  token TEXT NOT NULL UNIQUE,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  plan TEXT,
+  size INTEGER,
+  created_by INTEGER REFERENCES travellers(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_event_groups_event ON event_groups(event_id);
+
+CREATE TABLE IF NOT EXISTS event_group_members (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  group_id INTEGER NOT NULL REFERENCES event_groups(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  traveller_id INTEGER REFERENCES travellers(id) ON DELETE SET NULL,
+  joined_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_event_group_members_group ON event_group_members(group_id);
+
 -- One row per trip per traveller, so a re-run of the digest job can't spam
 -- anybody. The unique key is the idempotency.
 CREATE TABLE IF NOT EXISTS digest_sends (
@@ -326,6 +351,30 @@ DROP TABLE IF EXISTS meta;
  * duplicate-column error is caught and treated as success.
  */
 export const MIGRATIONS: { to: string; hint: string; statements: string[] }[] = [
+  {
+    to: "10",
+    hint: "group nights (event_groups + members)",
+    statements: [
+      `CREATE TABLE IF NOT EXISTS event_groups (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        token TEXT NOT NULL UNIQUE,
+        event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+        plan TEXT,
+        size INTEGER,
+        created_by INTEGER REFERENCES travellers(id) ON DELETE SET NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      "CREATE INDEX IF NOT EXISTS idx_event_groups_event ON event_groups(event_id)",
+      `CREATE TABLE IF NOT EXISTS event_group_members (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        group_id INTEGER NOT NULL REFERENCES event_groups(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        traveller_id INTEGER REFERENCES travellers(id) ON DELETE SET NULL,
+        joined_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      "CREATE INDEX IF NOT EXISTS idx_event_group_members_group ON event_group_members(group_id)",
+    ],
+  },
   {
     to: "9",
     hint: "hostel plans + billing_events",

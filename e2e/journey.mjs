@@ -277,10 +277,36 @@ async function main() {
   await me.open(eventHref);
   me.expect(new RegExp(message.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), "their own message in the chat");
 
-  // --------------------------------------------------------- 6. book a bed
+  // ------------------------------------------- 6. a group, joined by a stranger
+  step("makes a group link, and a friend joins it with nothing but a name");
+  await me.open(eventHref);
+  const group = await me.submit("Make a group link", {
+    eventId,
+    size: "4",
+    plan: `Dorm crew — ${STAMP}`,
+  });
+  const groupToken = group.path.match(/\/g\/([A-Za-z0-9_-]+)/)?.[1];
+  check(groupToken, `no group token: landed on ${group.path}`, strip(group.html).slice(0, 600));
+  group.expect(/Group made/i, "the group link being ready");
+
+  const friend2 = new Client("group friend");
+  await friend2.open(`/g/${groupToken}`);
+  friend2.expect(/Your first name/i, "the one-field join form");
+  friend2.expect(/Dorm crew/i, "what the group is called");
+  const joinedGroup = await friend2.submit("I'm in", { name: "Iris" });
+  joinedGroup.expect(/You're in/i, "the newcomer being counted");
+  joinedGroup.expect(/Iris/i, "their name on the list");
+
+  await me.open(eventHref);
+  me.expect(/Coming together/i, "the group on the event page");
+  me.expect(/2 people in 1 group/i, "two of us counted");
+
+  // --------------------------------------------------------- 7. book a bed
   step("books a bed in a Lisbon hostel");
-  const inDate = isoDay(20);
-  const outDate = isoDay(23);
+  // Two nights from now, so the traveller is both a real booking and an
+  // "arriving this week" on the event page — the thing the cohort line counts.
+  const inDate = isoDay(2);
+  const outDate = isoDay(4);
   await me.open("/explore");
   const hostelHref = first(/href="(\/hostel\/[a-z0-9-]+)"/, me.html);
   check(hostelHref, "no hostel on /explore", strip(me.html).slice(0, 600));
@@ -297,7 +323,11 @@ async function main() {
   paid.expect(/Paid|Confirmed/i, "the paid state");
   paid.expect(/sandbox/i, "that the payment was a sandbox one");
 
-  // ------------------------------------------------------------ 8. trips
+  // The number that makes "19 going" mean something: they are in town.
+  await me.open(eventHref);
+  me.expect(/arrives? within the week/i, "the arrival cohort on the event page");
+
+  // ------------------------------------------------------------ 9. trips
   step("the stay shows up in trips");
   await me.open("/trips");
   me.expect(/booking-card|Upcoming|Lisbon/i, "the trip list");
@@ -392,6 +422,17 @@ async function main() {
   await hostel.open(`/event/${posted.id}`);
   hostel.expect(new RegExp(title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), "the new event page");
 
+  // The poster on the wall has to be in the language at the desk, not ours.
+  await hostel.open(`/hostel/${HOSTEL.slug}/kit?lang=pt`);
+  hostel.expect(/O que há/i, "the poster in Portuguese");
+  hostel.expect(/hoje à noite/i, "the Portuguese headline");
+  hostel.expectNot(/What's on/i, "the English headline in Portuguese mode");
+  await hostel.open(`/hostel/${HOSTEL.slug}/kit?lang=pl`);
+  hostel.expect(/Co jest/i, "the poster in Polish");
+  await hostel.open(`/hostel/${HOSTEL.slug}/kit`);
+  hostel.expect(/What's on/i, "English when no language is asked for");
+  hostel.expect(/Print it in their language/i, "the language switcher");
+
   // ----------------------------------------------- 14. the screen is locked
   step("the reception screen is locked while the hostel is free");
   await hostel.open(`/hostel/${HOSTEL.slug}/kit`);
@@ -416,6 +457,18 @@ async function main() {
   hostel.expect(/Scan to join in/i, "the live screen");
   hostel.expectNot(/part of Away Pro/i, "the Pro wall");
   // Cancelling is a front-desk job, not a screen job.
+  // ...and a group at the hostel's own night shows up on that screen, which is
+  // the thing the desk actually wants from it.
+  await me.open(`/event/${posted.id}`);
+  const paddle = await me.submit("Make a group link", { eventId: posted.id, size: "5", plan: "Paddle crew" });
+  const paddleToken = paddle.path.match(/\/g\/([A-Za-z0-9_-]+)/)?.[1];
+  check(paddleToken, `no group token for the paddle: ${paddle.path}`);
+  await friend2.open(`/g/${paddleToken}`);
+  await friend2.submit("I'm in", { name: "Iris" });
+
+  await hostel.open(`/hostel/${HOSTEL.slug}/board`);
+  hostel.expect(/2 in a group/i, "the group on the reception screen");
+
   await hostel.open("/hostel-admin");
   const cancelled = await hostel.submit("Cancel Pro");
   cancelled.expect(/Pro · ending|ends on|ending/i, "the ending state");

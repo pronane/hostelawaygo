@@ -54,15 +54,21 @@ their favour, and hostels trust a peer more than a landing page.
 Signal: applications with `from=` → approvals. Kill it if the referral rate is
 under 10% of applications after three cities.
 
-### 1.3 The kit in their language *(hostels · S · free)*
+### 1.3 The kit in their language *(hostels · S · free)* — **shipped**
 The reception poster and the dorm sticker are the product's front door and they
 are English-only. Portuguese, Spanish, French, German, Italian and Polish
 versions of the same A4, generated from the same route (`/hostel/[slug]/kit`),
 with a language toggle. A Lisbon hostel with a Polish receptionist should not
 have to translate it themselves.
 
-Effort: S (string table + the existing print view). Signal: kit downloads per
-hostel. This one is not optional in a city that speaks four languages.
+Shipped: `?lang=pt|es|fr|de|it|pl` on `/hostel/[slug]/kit`, defaulting to the
+browser's own `Accept-Language`, with the switcher on the page. The poster, the
+dorm sticker and the three check-in lines change; the coaching around them stays
+in English because its reader is the person looking at this screen. The QR is
+the same in every language, so a building with four front desks prints all seven.
+
+Signal: kit downloads per hostel. This one is not optional in a city that speaks
+four languages.
 
 ### 1.4 The receipt that argues for renewal *(hostels · S · Pro)*
 The weekly receipt exists. Make it *do something*: "Tuesday's curry post brought
@@ -96,11 +102,15 @@ keeps the traveller feed alive.
 
 ## 2. For solo travellers — "why open it tonight?"
 
-### 2.1 "Who else is arriving" *(solo travellers · S · free)* — the wedge
-The event page says 19 going. It should say **"6 of them arrive this week, 4
-arrived today"**, from the arrivals table that already exists. The whole product
-promise is *you will not be alone tonight*; this is the number that proves it,
-and it is one query and one sentence.
+### 2.1 "Who else is arriving" *(solo travellers · S · free)* — **shipped**
+Shipped as two lines in the traveller lens, from confirmed bookings that
+already exist — no new table:
+
+- "4 of the 19 are staying in Lisbon that night" (a bed covering the night)
+- "6 more arrive within the week" (a bed starting in the next seven days)
+
+Nothing renders when the answer is zero: an empty statistic is worse than no
+statistic. `getArrivalCohort()` in `lib/queries.ts` owns it.
 
 ### 2.2 Add to calendar + a 30-minute nudge *(solo travellers · S · free)*
 "Going" is a weak commitment. A calendar entry (`.ics`, no account needed) and a
@@ -135,7 +145,7 @@ product, and "it worked when my phone didn't" is a story people tell.
 This is the least served side of hostel travel and the one hostels care most
 about (groups fill beds midweek and eat at the hostel bar).
 
-### 3.1 Group nights *(groups and hostels · M · free)* — the one to build next
+### 3.1 Group nights *(groups and hostels · M · free)* — **shipped**
 One person creates a group for a night ("Thursday curry, we're 5"), gets a link,
 and friends join **with a name and a tap** — no account until they want one. The
 event page shows "2 groups going (9 people)"; the hostel's reception screen
@@ -147,9 +157,17 @@ it gives the hostel a reason to care about the screen (the Pro feature), and it
 is the only feature here that grows the number of people at an event without
 spending a euro.
 
-Effort: one table (`groups`, `group_members`), one page (`/g/<token>`), one
-action, one badge on the event page. Small enough to ship in a week, big enough
-to be the reason a hostel renews.
+Built as described: `event_groups` + `event_group_members` (schema 10, migrated
+in place), `/g/[token]` (`noindex`), `createGroupAction` / `joinGroupAction`,
+a "Coming together" block on the event page, and — the part the hostel sees —
+"2 in a group" on the reception screen.
+
+A guest can join with a first name and nothing else; a signed-in traveller is
+linked to their account instead of being added twice. Tapping the link twice
+does not inflate the count.
+
+Still open, deliberately: split payment (3.2), the group vote (3.3), and group
+rates (3.4). Those are the next layer *on* this, not part of it.
 
 Signal: groups per 100 events; average group size; whether group events get
 more joins than solo ones.
@@ -205,13 +223,14 @@ message to the desk instead of a phone call at midnight.
 
 | Order | Thing | Why first | Effort | Signal it worked |
 |---|---|---|---|---|
-| 1 | "Who else is arriving" on the event page (2.1) | It makes the promise visible, with data already in the database | S | Join rate per event view |
-| 2 | Kit in five languages (1.3) | Removes the last excuse for a poster not going up | S | Kit downloads per partner |
-| 3 | Group nights (3.1) | The only thing here that grows attendance without spending money, and it gives the paid screen a job | M | Groups per 100 events |
+| ~~1~~ | ~~"Who else is arriving" on the event page (2.1)~~ | **Shipped** — it makes the promise visible, with data already in the database | S | Join rate per event view |
+| ~~2~~ | ~~Kit in five languages (1.3)~~ | **Shipped** (seven) — removes the last excuse for a poster not going up | S | Kit downloads per partner |
+| ~~3~~ | ~~Group nights (3.1)~~ | **Shipped** — the only thing here that grows attendance without spending money, and it gives the paid screen a job | M | Groups per 100 events |
 | 4 | Fill the quiet night (1.1) | The one pitch a hostel can act on today and measure tomorrow | M | Beds posted per week |
 
 **Bring a neighbour** (1.2) is the cheapest lever on the launch bar and should
-ride along with whichever of these touches billing first.
+ride along with whichever of these touches billing first — it is one referral
+column on `/partner`, a credit on `billing_events`, and nothing else.
 
 ---
 
